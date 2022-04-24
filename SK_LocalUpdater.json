@@ -1,0 +1,4 @@
+{
+    "blacklist": ["C:\\Users\\Spodi\\AppData\\Local\\osu!\\OpenGL32.dll"],
+    "AdditionalDLLs": []
+  }
