@@ -18,18 +18,29 @@ param (
 )
 
 #region Variables
-
-
-
-
 # SpecialK Variables
-$SpecialKVersions = @()
 $SK_DLLPath = [Environment]::GetFolderPath('MyDocuments') + '\My Mods\SpecialK'
-$SpecialKVersions += (Get-Item "$SK_DLLPath\SpecialK64.dll").VersionInfo.ProductVersion
-$SpecialKVersions += (Get-Item "$SK_DLLPath\SpecialK32.dll").VersionInfo.ProductVersion
-$SpecialKNewestVersion = ((Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content | ConvertFrom-Json).Main.Versions[0].Name
-if (($SpecialKVersions | Sort-Object -Descending)[0] -gt $SpecialKNewestVersion) {
-	$SpecialKNewestVersion = ($SpecialKVersions | Sort-Object -Descending)[0]
+$SpecialKVersions = @()
+Get-Item "$SK_DLLPath\SpecialK*.dll" | Sort-Object name -Descending | ForEach-Object {
+	$tempSKDll = New-Object PSObject
+	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Name' -Value $_.Name
+	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Version' -Value $_.VersionInfo.ProductVersion
+	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'VersionInternal' -Value $_.VersionInfo.ProductVersionRaw
+	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Bits' -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
+	$variant = ($_.Name -Replace '^.*?SpecialK[6,3][4,2]-?|\.dll.*$')
+	if (!$variant) {
+		$variant = 'Main'
+	}
+	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Variant' -Value $variant
+	$SpecialKVersions += $tempSKDll
+	Remove-Variable tempSKDll, variant
+}
+$SpecialKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+$SpecialKNewestVersion = $SpecialKNewestVersionInternal
+$potentialNewestVersion = ($SpecialKVersions | Sort-Object VersionInternal -Descending)[0]
+if ($potentialNewestVersion.VersionInternal -gt $SpecialKNewestVersionInternal) {
+	$SpecialKNewestVersionInternal = $potentialNewestVersion.VersionInternal
+	$SpecialKNewestVersion = $potentialNewestVersion.Version
 }
 
 $blacklist = $null
@@ -37,16 +48,17 @@ $whitelist = $null
 $dllcache = $null
 $dlls = $null
 
+$apps = @()
+
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
 	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist
 	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs
 } else {
 	New-Item $PSScriptRoot\SK_LU_settings.json
-	Set-Content $PSScriptRoot\SK_LU_settings.json -value (@{'Blacklist' = @(); 'AdditionalDLLs' = @()} | ConvertTo-Json)
+	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @() } | ConvertTo-Json)
 }
 
-
-#region Theming and window stuff
+# Theming and window stuff
 #Data for light or dark theme
 $theme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
 if ($theme -eq 0) {
@@ -55,8 +67,7 @@ if ($theme -eq 0) {
 	$WindowBackground = '#1a1a1a'
 	$MouseOver = '#2b2b2b'
 	$ButtonBackground = '#333333'
-}
-else {
+} else {
 	$Foreground = 'Black'
 	$Background = '#f2f2f2'
 	$WindowBackground = '#ffffff'
@@ -66,13 +77,13 @@ else {
 #Round corners in win11
 if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuild).CurrentBuild -lt 22000) {
 	$CornerRadius = 0
-}
-else {
+} else {
 	$CornerRadius = 4
 }
 $windowTitle = 'SpecialK local install updater'
 #endregion
 
+#region Functions
 Function ConvertFrom-VDF {
 	<# 
  .Synopsis 
@@ -115,24 +126,20 @@ Function ConvertFrom-VDF {
 				# Create a new (sub) object
 				$element = New-Object -TypeName PSObject
 				Add-Member -InputObject $parent -MemberType NoteProperty -Name $quotedElements[0].Value -Value $element
-			}
-			elseif ($quotedElements.Count -eq 2) {
+			} elseif ($quotedElements.Count -eq 2) {
 				# Create a new String hash
 				Add-Member -InputObject $element -MemberType NoteProperty -Name $quotedElements[0].Value -Value $quotedElements[1].Value
-			}
-			elseif ($line -match '{') {
+			} elseif ($line -match '{') {
 				$chain.Add($depth, $element)
 				$depth++
 				$parent = $chain.($depth - 1) # AKA $element
                 
-			}
-			elseif ($line -match '}') {
+			} elseif ($line -match '}') {
 				$depth--
 				$parent = $chain.($depth - 1)
 				$element = $parent
 				$chain.Remove($depth)
-			}
-			else {
+			} else {
 				# Comments etc
 			}
 		}
@@ -154,10 +161,8 @@ function Select-AllGames {
 		$instances | ForEach-Object {
 			$_.IsChecked = $true
 		}
-	} 
-	elseif ($CheckBox.IsChecked = $null) {
-	} 
-	else {
+	} elseif ($CheckBox.IsChecked = $null) {
+	} else {
 		$instances | ForEach-Object {
 			$_.IsChecked = $false
 			$CheckBox.IsChecked = $false
@@ -196,7 +201,7 @@ function Show-MessageBox {
 	}
 }
 
-$apps = @()
+
 function Get-GameFolders { 
 	[CmdletBinding()]
 	param (
@@ -233,8 +238,7 @@ function Get-GameFolders {
 
 			If (Test-Path "$($steamPath)\config\libraryfolders.vdf") {
 				$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\config\libraryfolders.vdf" -Encoding UTF8)
-			}
-			else {
+			} else {
 				$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\steamapps\libraryfolders.vdf" -Encoding UTF8)
 			}
 
@@ -300,14 +304,13 @@ function Get-GameFolders {
 	$apps | Sort-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType 'Container') } | Write-Output #remove duplicate and invalid entries and sort them nicely
 }
 
-
 function Find-SkDlls {
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory, ValueFromPipeline)][String]$Path
 	)
 	begin {
-		Write-Host -NoNewline "Scanning game folders for a local SpecialK.dll, this could take a while... "
+		Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
@@ -315,24 +318,14 @@ function Find-SkDlls {
 	}
 }
 
-if (! $Scan) {
-	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
-		Write-Host -NoNewline 'Loading cached locations...'
-		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
-	}
-}	
-if ($dllcache) {
-	$dlls += $dllcache | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+function Register-UpdateTask {
+	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui"
+	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
+	$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME
+	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+	$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+	Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User $env:USERNAME
 }
-else {
-	$dlls += Get-GameFolders | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
-		
-}
-if ($whitelist) {
-	$dlls += $whitelist
-}
-Write-Host 'Done'
 
 function Update-DllList { 
 	[CmdletBinding()]
@@ -349,18 +342,17 @@ function Update-DllList {
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
 		if ((Join-Path -Path $_.DirectoryName -ChildPath $_.Name) -in $blacklist) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
-		}
-		else {
+		} else {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $True -TypeName System.Boolean
 		}
 		Write-Output $obj
 
 	}
 }
-$instances = $dlls | Update-DllList $blacklist
-Function Show-GameList {
-	Add-Type -AssemblyName PresentationCore, PresentationFramework, System.Windows.Forms
 
+Function Show-GameList {
+	$SpecialKVariants = ($SpecialKVersions | Select-Object Variant -Unique)
+	Add-Type -AssemblyName PresentationCore, PresentationFramework, System.Windows.Forms
 	[xml]$XAML = @"
     <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
    			xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -458,28 +450,37 @@ Function Show-GameList {
 						Installed SpecialK version: 
 						<LineBreak/> 
 						$(
-							if($SpecialKVersions[0] -ge $SpecialKNewestVersion){
-								$SpecialKVersions[0]
-							}
-							else{
-								"<Bold Foreground=`"Orange`">$($SpecialKVersions[0])</Bold>"
-							}
-							if(($SpecialKVersions | Sort-Object -Unique).Count -eq 2){
-								'(64-bit)'
-								'<LineBreak/>'
-								if($SpecialKVersions[1] -ge $SpecialKNewestVersion){
-									$SpecialKVersions[1]
+							$a = $SpecialKVersions | Sort-Object Variant, VersionInternal -Unique -Descending
+                            $a | ForEach-Object {
+								if(($a | Where-Object Variant -Like $_.Variant).Count -eq 2){
+									if($_.VersionInternal -ge $SpecialKNewestVersionInternal){
+										"$($_.Variant) - x$($_.Bits) - $($_.Version)"
+									}
+									else{
+										"$($_.Variant) - x$($_.Bits) - <Bold Foreground=`"Orange`">$($_.version)</Bold>"
+									}
 								}
 								else{
-									"<Bold Foreground=`"Orange`">$($SpecialKVersions[1])</Bold>"
+									if($_.VersionInternal -ge $SpecialKNewestVersionInternal){
+										"$($_.Variant) - $($_.Version)"
+									}
+									else{
+										"$($_.Variant) - <Bold Foreground=`"Orange`">$($_.version)</Bold>"
+									}
 								}
-								'(32-bit)'
-								}
-							if(!($SpecialKVersions[0] -ge $SpecialKNewestVersion) -or !($SpecialKVersions[1] -ge $SpecialKNewestVersion)){
+                                '<LineBreak/>'
+                            }
+                            
+							if(($SpecialKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SpecialKNewestVersionInternal){
 							"<LineBreak/>
-							<LineBreak/>
-							<Bold Foreground=`"Green`">There's an update available! ($SpecialKNewestVersion)</Bold>"
+							<Bold Foreground=`"Green`">There's an update available! ($SpecialKNewestVersionInternal)</Bold>"
 							}
+                            if($SpecialKVariants.Count){
+                                "<LineBreak/>
+								Variant to use:
+								<LineBreak/>
+								<ComboBox Name=`"VariantsComboBox`" MinWidth=`"82`" Width=`"Auto`"/>"
+                            }
 						)
 					</TextBlock>
 				</Label>
@@ -533,45 +534,63 @@ Function Show-GameList {
 							</DataGridTextColumn>
 						</DataGrid.Columns>
 					</DataGrid>
-            	<Button Name="ButtonUpdate" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="100">Update</Button>
-				<Button Name="ButtonScan" Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="100">Scan</Button>
+            	<Button Name="UpdateButton" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="100">Update</Button>
+				<Button Name="ScanButton" Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="100">Scan</Button>
+				<Button Name="TaskButton" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="Auto">
+				$(if(Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore){
+					'Disable Automatic Update'
+				}
+				else{
+					'Enable Automatic Update'
+				})
+				</Button>
 			</Grid>
 	</Window>
 "@
     
 	$Reader = (New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList $XAML)
 	$Form = [Windows.Markup.XamlReader]::Load($Reader)
+
 	$XAML.SelectNodes("//*[@*[contains(translate(name(.),'n','N'),'Name')]]") | ForEach-Object -Process {
 		Set-Variable -Name ($_.Name) -Value $Form.FindName($_.Name) -Scope Global
+	}
+	if ($SpecialKVariants.Count) {
+		$VariantsComboBox.ItemsSource = $SpecialKVariants.Variant
+		$VariantsComboBox.SelectedItem = 'Main'
 	}
 
 	$CheckboxSelectAll.Add_Click({ Select-AllGames -CheckBox $_.source })
 
-	$UpdateButton = {
+	$ButtonUpdate = {
 		$Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
 			$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
-			Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$destination`""
-			try {
-				Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination -ErrorAction 'Stop'
-				if ($_.InternalName -like '*64*') {
-					$_.Version = $SpecialKVersions[0]
-				}
-				else {
-					$_.Version = $SpecialKVersions[1]
-				}
+			try {			
+				$usedDll = $SpecialKVersions | Where-Object Bits -Like $_.Bits | Where-Object Variant -EQ $VariantsComboBox.SelectedItem
+				$source = Join-Path -Path $SK_DLLPath -ChildPath $usedDll.Name
+				Write-Host "Copy item `"$($source)`" to destination `"$destination`""
+				Copy-Item -LiteralPath $source -Destination $destination -ErrorAction 'Stop'
+				$_.Version = $usedDll.Version
+			} catch {
+				Write-Error "Failed to update `"$destination`"
+$_"
 			}
-			catch {
-				Write-Error "Failed to update `"$destination`""
-				$_.Version = "Error"
-			}
+			$i++
 		}
-		$instances = $dlls | Update-DllList $blacklist
 		$Games.ItemsSource = $null
 		$Games.ItemsSource = $instances
 	}
 
-	$ScanButton = {
+	$ButtonTask = {
+		if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
+			Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
+			$TaskButton.Content = 'Enable automatic update'
+		} else {
+			Register-UpdateTask
+			$TaskButton.Content = 'Disable automatic update'
+		}
+	}
 
+	$ButtonScan = {
 		$dlls = Get-GameFolders | Find-SkDlls
 		[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 		if ($whitelist) {
@@ -587,18 +606,40 @@ Function Show-GameList {
 			$Games.ItemsSource = $instances
 		})
 
-	$ButtonUpdate.Add_Click($UpdateButton)
-	$ButtonScan.Add_Click($ScanButton)
+	$UpdateButton.Add_Click($ButtonUpdate)
+	$ScanButton.Add_Click($ButtonScan)
+	$TaskButton.Add_Click($ButtonTask)
 
 
 	if ($instances) {
 		$Form.ShowDialog() | Out-Null
-	}
-	else {
+	} else {
 		Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
 	}
 
 }
+
+#endregion
+
+if (! $Scan) {
+	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
+		Write-Host -NoNewline 'Loading cached locations...'
+		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
+	}
+}	
+if ($dllcache) {
+	$dlls += $dllcache | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+} else {
+	$dlls += Get-GameFolders | Find-SkDlls
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
+		
+}
+if ($whitelist) {
+	$dlls += $whitelist
+}
+Write-Host 'Done'
+
+$instances = $dlls | Update-DllList $blacklist
 
 if ($NoGUI) {
 	Write-Host ''
@@ -609,7 +650,6 @@ if ($NoGUI) {
 			Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination
 		}
 	} 
-}
-else {
+} else {
 	Show-GameList
 }
