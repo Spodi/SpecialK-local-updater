@@ -42,6 +42,7 @@ if ($potentialNewestVersion.VersionInternal -gt $SpecialKNewestVersionInternal) 
 	$SpecialKNewestVersionInternal = $potentialNewestVersion.VersionInternal
 	$SpecialKNewestVersion = $potentialNewestVersion.Version
 }
+$SpecialKVariants = ($SpecialKVersions | Select-Object Variant -Unique)
 
 $blacklist = $null
 $whitelist = $null
@@ -351,7 +352,6 @@ function Update-DllList {
 }
 
 Function Show-GameList {
-	$SpecialKVariants = ($SpecialKVersions | Select-Object Variant -Unique)
 	Add-Type -AssemblyName PresentationCore, PresentationFramework, System.Windows.Forms
 	[xml]$XAML = @"
     <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -475,7 +475,7 @@ Function Show-GameList {
 							"<LineBreak/>
 							<Bold Foreground=`"Green`">There's an update available! ($SpecialKNewestVersionInternal)</Bold>"
 							}
-                            if($SpecialKVariants.Count){
+                            if($SpecialKVariants.Count -gt 1){
                                 "<LineBreak/>
 								Variant to use:
 								<LineBreak/>
@@ -554,7 +554,7 @@ Function Show-GameList {
 	$XAML.SelectNodes("//*[@*[contains(translate(name(.),'n','N'),'Name')]]") | ForEach-Object -Process {
 		Set-Variable -Name ($_.Name) -Value $Form.FindName($_.Name) -Scope Global
 	}
-	if ($SpecialKVariants.Count) {
+	if ($SpecialKVariants.Count -gt 1) {
 		$VariantsComboBox.ItemsSource = $SpecialKVariants.Variant
 		$VariantsComboBox.SelectedItem = 'Main'
 	}
