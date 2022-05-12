@@ -1,0 +1,165 @@
+<Window x:Class="SKLU.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:SKLU" mc:Ignorable="d" Title="SK LU"
+    Foreground="White" Background="#141414"
+    MinHeight="300" MinWidth="300"
+    Width="640" Height="Auto" SizeToContent="Height"
+    WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
+    FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
+    <Window.Resources>
+        <Style x:Key="DarkTheme" TargetType="{x:Type Control}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#141414" />
+            <Style.Resources>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="CornerRadius" Value="0" />
+                </Style>
+            </Style.Resources>
+        </Style>
+
+        <Style x:Key="LightTheme" TargetType="{x:Type Control}">
+            <Setter Property="Foreground" Value="Black" />
+            <Setter Property="Background" Value="#f2f2f2" />
+            <Style.Resources>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="CornerRadius" Value="0" />
+                </Style>
+            </Style.Resources>
+        </Style>
+
+        <Style TargetType="{x:Type Label}" BasedOn="{StaticResource DarkTheme}">
+        </Style>
+
+        <Style x:Key="DarkThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="Background" Value="#333333" />
+            <Setter Property="BorderBrush" Value="#434343" />
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="Padding" Value="10" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="Black" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LightThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource LightTheme}">
+            <Setter Property="Background" Value="#d9d9d9" />
+            <Setter Property="BorderBrush" Value="#c9c9c9" />
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="Padding" Value="10" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="Black" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+
+        <Style TargetType="{x:Type DataGrid}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="HorizontalGridLinesBrush" Value="#585858" />
+            <Setter Property="VerticalGridLinesBrush" Value="#585858" />
+            <Setter Property="BorderBrush" Value="#585858" />
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="Padding" Value="4,8,4,8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="RowHeight" Value="30" />
+        </Style>
+        <Style TargetType="{x:Type DataGridRow}" BasedOn="{StaticResource DarkTheme}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2b2b2b" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type DataGridColumnHeader}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style TargetType="DataGridRowHeader" BasedOn="{StaticResource DarkTheme}">
+        </Style>
+        <Style TargetType="DataGridCell" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Padding" Value="40" />
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="200" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Label Grid.Row="0">
+            <TextBlock>
+                Installed SpecialK version:
+                <LineBreak />
+                <Bold Foreground="Orange">$version</Bold>
+                <LineBreak />
+                <Bold Foreground="Green">There's an update available! ($SpecialKNewestVersionInternal)</Bold>
+                <LineBreak />
+                Variant to use:
+                <LineBreak />
+
+            </TextBlock>
+        </Label>
+        <ComboBox x:Name="VariantsComboBox" MinWidth="82" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+        <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
+                    <DataGridCheckBoxColumn.Header>
+                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True">
+                        </CheckBox>
+                    </DataGridCheckBoxColumn.Header>
+                </DataGridCheckBoxColumn>
+                <DataGridTextColumn Header="Directory" Binding="{Binding Path=Directory}" MinWidth="70" Width="*" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Name" Binding="{Binding Path=Name}" MinWidth="70" Width="Auto" MaxWidth="100" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Bits" Binding="{Binding Path=Bits}" MinWidth="35" MaxWidth="35" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Version" Binding="{Binding Path=Version}" MinWidth="60" Width="Auto" MaxWidth="80" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="§SKNewestVersion§">
+                                    <Setter Property="Foreground" Value="Green" />
+                                </Trigger>
+                            </Style.Triggers>
+                            <Setter Property="Foreground" Value="Orange" />
+                            <Setter Property="TextAlignment" Value="Center" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+        <Button x:Name="UpdateButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" Width="100">Update</Button>
+        <Button x:Name="ScanButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" Width="100">Scan</Button>
+        <Button x:Name="TaskButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" Width="Auto">Enable Automatic Update</Button>
+    </Grid>
+</Window>
