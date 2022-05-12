@@ -10,81 +10,7 @@
 	.Notes
 	Createdy by Spodi and Wall_SoGB
  #>
-[CmdletBinding()]
-param (
-	[Parameter(Mandatory = $false)]
-	[switch]$NoGUI,
-	[switch]$Scan
-)
-
-#region Variables
-# SpecialK Variables
-$SK_DLLPath = [Environment]::GetFolderPath('MyDocuments') + '\My Mods\SpecialK'
-$SpecialKVersions = @()
-Get-Item "$SK_DLLPath\SpecialK*.dll" | Sort-Object name -Descending | ForEach-Object {
-	$tempSKDll = New-Object PSObject
-	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Name' -Value $_.Name
-	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Version' -Value $_.VersionInfo.ProductVersion
-	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'VersionInternal' -Value $_.VersionInfo.ProductVersionRaw
-	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Bits' -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
-	$variant = ($_.Name -Replace '^.*?SpecialK[6,3][4,2]-?|\.dll.*$')
-	if (!$variant) {
-		$variant = 'Main'
-	}
-	Add-Member -InputObject $tempSKDll -MemberType NoteProperty -Name 'Variant' -Value $variant
-	$SpecialKVersions += $tempSKDll
-	Remove-Variable tempSKDll, variant
-}
-$SpecialKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
-$SpecialKNewestVersion = $SpecialKNewestVersionInternal
-$potentialNewestVersion = ($SpecialKVersions | Sort-Object VersionInternal -Descending)[0]
-if ($potentialNewestVersion.VersionInternal -gt $SpecialKNewestVersionInternal) {
-	$SpecialKNewestVersionInternal = $potentialNewestVersion.VersionInternal
-	$SpecialKNewestVersion = $potentialNewestVersion.Version
-}
-$SpecialKVariants = ($SpecialKVersions | Select-Object Variant -Unique)
-
-$blacklist = $null
-$whitelist = $null
-$dllcache = $null
-$dlls = $null
-
-$apps = @()
-
-if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
-	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist
-	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs
-} else {
-	New-Item $PSScriptRoot\SK_LU_settings.json
-	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @() } | ConvertTo-Json)
-}
-
-# Theming and window stuff
-#Data for light or dark theme
-$theme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
-if ($theme -eq 0) {
-	$Foreground = 'White'
-	$Background = '#141414'
-	$WindowBackground = '#1a1a1a'
-	$MouseOver = '#2b2b2b'
-	$ButtonBackground = '#333333'
-} else {
-	$Foreground = 'Black'
-	$Background = '#f2f2f2'
-	$WindowBackground = '#ffffff'
-	$MouseOver = '#e0e0e0'
-	$ButtonBackground = '#d9d9d9'
-}
-#Round corners in win11
-if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuild).CurrentBuild -lt 22000) {
-	$CornerRadius = 0
-} else {
-	$CornerRadius = 4
-}
-$windowTitle = 'SpecialK local install updater'
-#endregion
-
-#region Functions
+#region <FUNCTIONS>
 Function ConvertFrom-VDF {
 	<# 
  .Synopsis 
@@ -127,20 +53,24 @@ Function ConvertFrom-VDF {
 				# Create a new (sub) object
 				$element = New-Object -TypeName PSObject
 				Add-Member -InputObject $parent -MemberType NoteProperty -Name $quotedElements[0].Value -Value $element
-			} elseif ($quotedElements.Count -eq 2) {
+			}
+			elseif ($quotedElements.Count -eq 2) {
 				# Create a new String hash
 				Add-Member -InputObject $element -MemberType NoteProperty -Name $quotedElements[0].Value -Value $quotedElements[1].Value
-			} elseif ($line -match '{') {
+			}
+			elseif ($line -match '{') {
 				$chain.Add($depth, $element)
 				$depth++
 				$parent = $chain.($depth - 1) # AKA $element
                 
-			} elseif ($line -match '}') {
+			}
+			elseif ($line -match '}') {
 				$depth--
 				$parent = $chain.($depth - 1)
 				$element = $parent
 				$chain.Remove($depth)
-			} else {
+			}
+			else {
 				# Comments etc
 			}
 		}
@@ -149,60 +79,6 @@ Function ConvertFrom-VDF {
 	}
     
 }
-
-function Select-AllGames {
-	[CmdletBinding()]
-	param
-	(
-		[Parameter(Mandatory = $true)]
-		[ValidateNotNull()]$CheckBox
-	)
-
-	if ($CheckBox.IsChecked) {
-		$instances | ForEach-Object {
-			$_.IsChecked = $true
-		}
-	} elseif ($CheckBox.IsChecked = $null) {
-	} else {
-		$instances | ForEach-Object {
-			$_.IsChecked = $false
-			$CheckBox.IsChecked = $false
-		}
-	}
-	$Games.ItemsSource = $null
-	$Games.ItemsSource = $instances
-}
-
-function Show-MessageBox {
-	[CmdletBinding()]
-	param (
-		[Parameter(Mandatory = $true)]
-		[string]
-		$Message,
-		[Parameter(Mandatory = $true)]
-		[string]
-		$Title,
-		[Parameter(Mandatory = $false)] [ValidateSet('OK', 'OKCancel', 'RetryCancel', 'YesNo', 'YesNoCancel', 'AbortRetryIgnore')]
-		[string]
-		$Button = 'OK',
-		[Parameter(Mandatory = $false)] [ValidateSet('Asterisk', 'Error', 'Exclamation', 'Hand', 'Information', 'None', 'Question', 'Stop', 'Warning')]
-		[string]
-		$Icon = 'None'
-	)
-	begin {
-		Add-Type -AssemblyName System.Windows.Forms | Out-Null
-		[System.Windows.Forms.Application]::EnableVisualStyles()
-	}
-	process {
-		$button = [System.Windows.Forms.MessageBoxButtons]::$Button
-		$icon = [System.Windows.Forms.MessageBoxIcon]::$Icon
-	}
-	end {
-		return [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Button, $Icon)
-	}
-}
-
-
 function Get-GameFolders { 
 	[CmdletBinding()]
 	param (
@@ -216,6 +92,7 @@ function Get-GameFolders {
 	$EGSRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
 	$XBOXRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
 
+	$apps = @()
 	If ($DisabledPlattforms -notcontains 'SKIF') {
 		#Get custom SKIF games
 		if (Test-Path $SKIFRegistry) {
@@ -239,7 +116,8 @@ function Get-GameFolders {
 
 			If (Test-Path "$($steamPath)\config\libraryfolders.vdf") {
 				$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\config\libraryfolders.vdf" -Encoding UTF8)
-			} else {
+			}
+			else {
 				$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\steamapps\libraryfolders.vdf" -Encoding UTF8)
 			}
 
@@ -304,30 +182,18 @@ function Get-GameFolders {
 	}
 	$apps | Sort-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType 'Container') } | Write-Output #remove duplicate and invalid entries and sort them nicely
 }
-
 function Find-SkDlls {
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory, ValueFromPipeline)][String]$Path
 	)
 	begin {
-		Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
 		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
 }
-
-function Register-UpdateTask {
-	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui"
-	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
-	$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME
-	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-	$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
-	Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User $env:USERNAME
-}
-
 function Update-DllList { 
 	[CmdletBinding()]
 	param (
@@ -343,283 +209,130 @@ function Update-DllList {
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
 		if ((Join-Path -Path $_.DirectoryName -ChildPath $_.Name) -in $blacklist) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
-		} else {
+		}
+		else {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $True -TypeName System.Boolean
 		}
 		Write-Output $obj
 
 	}
 }
-
-Function Show-GameList {
-	Add-Type -AssemblyName PresentationCore, PresentationFramework, System.Windows.Forms
-	[xml]$XAML = @"
-    <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-   			xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    		Name="Window"
-			Title="$($windowTitle)"
-			Foreground="$($Foreground)"
-			Background="$($WindowBackground)"
-			$(if(Test-Path "$PSScriptRoot\SKIF.ico"){"Icon=`"$PSScriptRoot\SKIF.ico`""})
-    		MinHeight="300" MinWidth="300" Width="640"
-			Height="Auto"
-    		SizeToContent="Height" WindowStartupLocation="CenterScreen"
-    		TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
-    		FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
-    		<Window.Resources>
-				<Style TargetType="{x:Type Label}">
-					<Setter Property="Foreground" Value="$($Foreground)"/>
-            	</Style>
-            	<Style TargetType="{x:Type Button}">
-					<Setter Property="Foreground" Value="$($Foreground)"/>
-					<Setter Property="Background" Value="$($ButtonBackground)"/>
-					<Setter Property="BorderBrush" Value="$($ButtonBackground)" />
-                	<Setter Property="Margin" Value="10"/>
-                	<Setter Property="Padding" Value="10"/>
-					<Style.Triggers>
-                		<Trigger Property="IsMouseOver" Value="True">
-                    		<Setter Property="Foreground" Value="Black"/>
-                		</Trigger>
-            		</Style.Triggers>
-					<Style.Resources>
-            			<Style TargetType="Border">
-               				<Setter Property="CornerRadius" Value="$($CornerRadius)"/>
-            			</Style>
-        			</Style.Resources>
-            	</Style>
-				<Style TargetType="{x:Type DataGrid}">
-            		<Setter Property="Background" Value="$($Background)" />
-            		<Setter Property="HorizontalGridLinesBrush" Value="#585858" />
-            		<Setter Property="VerticalGridLinesBrush" Value="#585858" />
-            		<Setter Property="BorderBrush" Value="#585858" />
-					<Setter Property="Margin" Value="10"/>
-					<Setter Property="Padding" Value="4,8,4,8"/>
-					<Setter Property="VerticalAlignment" Value="Center" />
-					<Setter Property="RowHeight" Value="30"/>
-					<Style.Resources>
-            			<Style TargetType="{x:Type Border}">
-               				<Setter Property="CornerRadius" Value="$($CornerRadius)"/>
-            			</Style>
-        			</Style.Resources>
-				</Style>
-				<Style TargetType="{x:Type DataGridRow}">
-            		<Setter Property="Background" Value="$($Background)" />
-            		<Setter Property="Foreground" Value="$($Foreground)" />
-					<Style.Resources>
-            			<Style TargetType="{x:Type Border}">
-               				<Setter Property="CornerRadius" Value="$($CornerRadius)"/>
-            			</Style>
-        			</Style.Resources>
-            		<Style.Triggers>
-                		<Trigger Property="IsMouseOver" Value="True">
-                    		<Setter Property="Background" Value="$($MouseOver)"/>
-                		</Trigger>
-            		</Style.Triggers>
-        		</Style>
-				<Style TargetType="{x:Type DataGridColumnHeader}">
-						<Setter Property="HorizontalContentAlignment" Value="Center"/>
-						<Setter Property="Background" Value="$($Background)" />
-						<Setter Property="Foreground" Value="$($Foreground)" />
-						<Setter Property="FontWeight" Value="Bold" />
-				</Style>
-				<Style TargetType="DataGridRowHeader">
-					<Setter Property="Background" Value="$($Background)" />
-            		<Setter Property="Foreground" Value="$($Foreground)" />
-				</Style>
-				<Style TargetType="DataGridCell">              
-				  <Setter Property="Template">
-					<Setter.Value>
-					  <ControlTemplate TargetType="{x:Type DataGridCell}">
-						<Grid Background="{TemplateBinding Background}">
-						  <ContentPresenter VerticalAlignment="Center"/>
-						</Grid>
-					  </ControlTemplate>
-					</Setter.Value>
-				  </Setter>
-				  <Setter Property="Padding" Value="40"/>
-				</Style>
-        	</Window.Resources>
-        	<Grid>
-            	<Grid.RowDefinitions>
-                	<RowDefinition Height="Auto"/>
-                	<RowDefinition Height="*"/>
-                	<RowDefinition Height="Auto"/>
-            	</Grid.RowDefinitions>
-                <Label Grid.Row="0">
-					<TextBlock HorizontalAlignment="Stretch" Margin="5, 10, 10, 10">
-						Installed SpecialK version: 
-						<LineBreak/> 
-						$(
-							$a = $SpecialKVersions | Sort-Object Variant, VersionInternal -Unique -Descending
-                            $a | ForEach-Object {
-								if(($a | Where-Object Variant -Like $_.Variant).Count -eq 2){
-									if($_.VersionInternal -ge $SpecialKNewestVersionInternal){
-										"$($_.Variant) - x$($_.Bits) - $($_.Version)"
-									}
-									else{
-										"$($_.Variant) - x$($_.Bits) - <Bold Foreground=`"Orange`">$($_.version)</Bold>"
-									}
-								}
-								else{
-									if($_.VersionInternal -ge $SpecialKNewestVersionInternal){
-										"$($_.Variant) - $($_.Version)"
-									}
-									else{
-										"$($_.Variant) - <Bold Foreground=`"Orange`">$($_.version)</Bold>"
-									}
-								}
-                                '<LineBreak/>'
-                            }
-                            
-							if(($SpecialKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SpecialKNewestVersionInternal){
-							"<LineBreak/>
-							<Bold Foreground=`"Green`">There's an update available! ($SpecialKNewestVersionInternal)</Bold>"
-							}
-                            if($SpecialKVariants.Count -gt 1){
-                                "<LineBreak/>
-								Variant to use:
-								<LineBreak/>
-								<ComboBox Name=`"VariantsComboBox`" MinWidth=`"82`" Width=`"Auto`"/>"
-                            }
-						)
-					</TextBlock>
-				</Label>
-				<DataGrid Name="Games" AutoGenerateColumns="False" Height="Auto" Width="Auto" VerticalAlignment="Top" Grid.Row="1" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-						<DataGrid.Columns>
-							<DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
-								<DataGridCheckBoxColumn.Header>
-									<CheckBox Name="CheckboxSelectAll" IsChecked="True">
-										<CheckBox.LayoutTransform>
-        									<ScaleTransform ScaleX="1.25" ScaleY="1.25" />
-    									</CheckBox.LayoutTransform>
-									</CheckBox>
-						 		</DataGridCheckBoxColumn.Header>
-					  		 </DataGridCheckBoxColumn>
-							<DataGridTextColumn Header="Directory" Binding="{Binding Path=Directory}" MinWidth="70" Width="*" IsReadOnly="True">
-								<DataGridTextColumn.ElementStyle>
-									<Style TargetType="{x:Type TextBlock}">
-										<Setter Property="Margin" Value="10,0,10,0" />
-									</Style>
-								</DataGridTextColumn.ElementStyle>
-							</DataGridTextColumn>
-							<DataGridTextColumn Header="Name" Binding="{Binding Path=Name}" MinWidth="70" Width="Auto" MaxWidth="100" IsReadOnly="True">
-								<DataGridTextColumn.ElementStyle>
-									<Style TargetType="{x:Type TextBlock}">
-										<Setter Property="TextAlignment" Value="Center"/>
-										<Setter Property="Margin" Value="10,0,10,0" />
-									</Style>
-								</DataGridTextColumn.ElementStyle>
-							</DataGridTextColumn>
-							<DataGridTextColumn Header="Bits" Binding="{Binding Path=Bits}" MinWidth="35" MaxWidth="35" IsReadOnly="True">
-								<DataGridTextColumn.ElementStyle>
-									<Style TargetType="{x:Type TextBlock}">
-										<Setter Property="TextAlignment" Value="Center"/>
-										<Setter Property="Margin" Value="10,0,10,0" />
-									</Style>
-								</DataGridTextColumn.ElementStyle>
-							</DataGridTextColumn>
-							<DataGridTextColumn Header="Version" Binding="{Binding Path=Version}" MinWidth="60" Width="Auto" MaxWidth="80" IsReadOnly="True">
-								<DataGridTextColumn.ElementStyle>
-									<Style TargetType="{x:Type TextBlock}">
-										<Style.Triggers>
-											<Trigger Property="Text" Value="$($SpecialKNewestVersion)">
-												<Setter Property="Foreground" Value="$($Foreground)"/>
-												<Setter Property="Margin" Value="10,0,10,0" />
-											</Trigger>
-										</Style.Triggers>
-										<Setter Property="Foreground" Value="Orange"/>
-										<Setter Property="TextAlignment" Value="Center"/>
-									</Style>
-								</DataGridTextColumn.ElementStyle>
-							</DataGridTextColumn>
-						</DataGrid.Columns>
-					</DataGrid>
-            	<Button Name="UpdateButton" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="100">Update</Button>
-				<Button Name="ScanButton" Grid.Row="2" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="100">Scan</Button>
-				<Button Name="TaskButton" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Width="Auto">
-				$(if(Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore){
-					'Disable Automatic Update'
-				}
-				else{
-					'Enable Automatic Update'
-				})
-				</Button>
-			</Grid>
-	</Window>
-"@
-    
-	$Reader = (New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList $XAML)
-	$Form = [Windows.Markup.XamlReader]::Load($Reader)
-
-	$XAML.SelectNodes("//*[@*[contains(translate(name(.),'n','N'),'Name')]]") | ForEach-Object -Process {
-		Set-Variable -Name ($_.Name) -Value $Form.FindName($_.Name) -Scope Global
+function Register-UpdateTask {
+	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui -scan"
+	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
+	$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME
+	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RunOnlyIfNetworkAvailable
+	$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+	Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User $env:USERNAME
+}
+function Show-MessageBox {
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true)]
+		[string]
+		$Message,
+		[Parameter(Mandatory = $true)]
+		[string]
+		$Title,
+		[Parameter(Mandatory = $false)] [ValidateSet('OK', 'OKCancel', 'RetryCancel', 'YesNo', 'YesNoCancel', 'AbortRetryIgnore')]
+		[string]
+		$Button = 'OK',
+		[Parameter(Mandatory = $false)] [ValidateSet('Asterisk', 'Error', 'Exclamation', 'Hand', 'Information', 'None', 'Question', 'Stop', 'Warning')]
+		[string]
+		$Icon = 'None'
+	)
+	begin {
+		Add-Type -AssemblyName System.Windows.Forms | Out-Null
+		[System.Windows.Forms.Application]::EnableVisualStyles()
 	}
-	if ($SpecialKVariants.Count -gt 1) {
-		$VariantsComboBox.ItemsSource = $SpecialKVariants.Variant
-		$VariantsComboBox.SelectedItem = 'Main'
+	process {
+		$button = [System.Windows.Forms.MessageBoxButtons]::$Button
+		$icon = [System.Windows.Forms.MessageBoxIcon]::$Icon
+	}
+	end {
+		return [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Button, $Icon)
+	}
+}
+function New-XMLNamespaceManager {
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true, Position = 0)]
+		[xml]
+		$XmlDocument,
+		[string]
+		$DefaultNamespacePrefix
+	)
+
+	$NsMgr = New-Object -TypeName System.Xml.XmlNamespaceManager -ArgumentList $XmlDocument.NameTable
+
+	$DefaultNamespace = $XmlDocument.DocumentElement.GetAttribute('xmlns')
+	if ($DefaultNamespace -and $DefaultNamespacePrefix) {
+		$NsMgr.AddNamespace($DefaultNamespacePrefix, $DefaultNamespace)
 	}
 
-	$CheckboxSelectAll.Add_Click({ Select-AllGames -CheckBox $_.source })
-
-	$ButtonUpdate = {
-		$Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
-			$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
-			try {			
-				$usedDll = $SpecialKVersions | Where-Object Bits -Like $_.Bits | Where-Object Variant -EQ $VariantsComboBox.SelectedItem
-				$source = Join-Path -Path $SK_DLLPath -ChildPath $usedDll.Name
-				Write-Host "Copy item `"$($source)`" to destination `"$destination`""
-				Copy-Item -LiteralPath $source -Destination $destination -ErrorAction 'Stop'
-				$_.Version = $usedDll.Version
-			} catch {
-				Write-Error "Failed to update `"$destination`"
-$_"
-			}
-			$i++
-		}
-		$Games.ItemsSource = $null
-		$Games.ItemsSource = $instances
+	$XmlDocument.DocumentElement.Attributes | 
+	Where-Object { $_.Prefix -eq 'xmlns' } |
+	ForEach-Object {
+		$NsMgr.AddNamespace($_.LocalName, $_.Value)
 	}
 
-	$ButtonTask = {
-		if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
-			Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
-			$TaskButton.Content = 'Enable automatic update'
-		} else {
-			Register-UpdateTask
-			$TaskButton.Content = 'Disable automatic update'
-		}
+	return , $NsMgr # unary comma wraps $NsMgr so it isn't unrolled
+}
+#endregion </FUNCTIONS>
+
+
+Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -force
+
+$blacklist = $null
+$whitelist = $null
+$dllcache = $null
+$dlls = $null
+$apps = $null
+
+$SK_DLLPath = Get-SkPath
+
+$SKVersions = @()
+Get-SkVersion | ForEach-Object {
+	$obj = New-Object PSObject
+	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Name' -Value $_.Name
+	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Version' -Value $_.ProductVersion
+	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'VersionInternal' -Value $_.ProductVersionRaw
+	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Bits' -Value ($_.InternalName -replace '[^0-9]' , '')
+	$variant = ($_.Name -Replace '^.*?SpecialK[6,3][4,2]-?|\.dll.*$')
+	if (!$variant) {
+		$variant = 'Main'
 	}
-
-	$ButtonScan = {
-		$dlls = Get-GameFolders | Find-SkDlls
-		[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
-		if ($whitelist) {
-			$dlls += $whitelist
-		}
-		$instances = $dlls | Update-DllList $blacklist
-		Write-Host 'Done'
-		$Games.ItemsSource = $null
-		$Games.ItemsSource = $instances
-	}
-
-	$Window.Add_Loaded({
-			$Games.ItemsSource = $instances
-		})
-
-	$UpdateButton.Add_Click($ButtonUpdate)
-	$ScanButton.Add_Click($ButtonScan)
-	$TaskButton.Add_Click($ButtonTask)
-
-
-	if ($instances) {
-		$Form.ShowDialog() | Out-Null
-	} else {
-		Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
-	}
-
+	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Variant' -Value $variant
+	$SKVersions += $obj
+	Remove-Variable 'obj', 'variant'
 }
 
-#endregion
+$SKVariants = ($SKVersions | Select-Object Variant -Unique)
+
+
+
+$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+$SKNewestVersion = $SKNewestVersionInternal
+$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
+if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
+	$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
+	$SKNewestVersion = $potentialNewestVersion.Version
+}
+
+
+
+
+
+if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
+	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist
+	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs
+}
+else {
+	New-Item $PSScriptRoot\SK_LU_settings.json
+	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @() } | ConvertTo-Json)
+	$blacklist = $null
+	$whitelist = $null
+}
 
 if (! $Scan) {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
@@ -629,10 +342,11 @@ if (! $Scan) {
 }	
 if ($dllcache) {
 	$dlls += $dllcache | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
-} else {
+}
+else {
+	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
 	$dlls += Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
-		
 }
 if ($whitelist) {
 	$dlls += $whitelist
@@ -640,6 +354,137 @@ if ($whitelist) {
 Write-Host 'Done'
 
 $instances = $dlls | Update-DllList $blacklist
+
+
+$GUI = @{
+	XAML  = $null
+	WPF   = $null
+	NsMgr = $null
+	Nodes = @() 
+}
+
+$GUI.XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
+$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§',$SKNewestVersion
+$LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
+
+if ($LightTheme) { 
+	$GUI.XAML = $GUI.XAML -replace 'BasedOn="{StaticResource DarkTheme}"','BasedOn="{StaticResource LightTheme}"'
+	$GUI.XAML = $GUI.XAML -replace 'Style="{StaticResource DarkThemeButton}"','Style="{StaticResource LightThemeButton}"'
+	
+}
+
+#Round corners in win11
+if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuild).CurrentBuild -ge 22000) {
+	$GUI.XAML = $GUI.XAML -replace 'Property="CornerRadius" Value="0"','Property="CornerRadius" Value="4"'
+}
+[xml]$GUI.XAML = $GUI.XAML
+
+
+[void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
+$GUI.NsMgr = (New-XMLNamespaceManager $GUI.XAML)
+$GUI.WPF = [Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $GUI.XAML) )
+$GUI.Nodes = $GUI.XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object {
+	@{ $_.Name = $GUI.WPF.FindName($_.Name) }
+}
+if ($LightTheme) {
+	$GUI.WPF.Background = '#f2f2f2'
+	$GUI.WPF.Foreground = 'black'
+
+}
+
+
+if (Test-Path "$PSScriptRoot\SKIF.ico") {
+	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
+}
+
+
+if ($SKVariants.Count) {
+	$GUI.Nodes.VariantsComboBox.ItemsSource = $SKVariants.Variant
+	$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+}
+
+
+$ButtonUpdate = {
+	$GUI.Nodes.Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
+		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
+		try {			
+			$usedDll = $SKVersions | Where-Object Bits -Like $_.Bits | Where-Object Variant -EQ $GUI.Nodes.VariantsComboBox.SelectedItem
+			$source = Join-Path -Path $SK_DLLPath -ChildPath $usedDll.Name
+			Write-Host "Copy item `"$($source)`" to destination `"$destination`""
+			Copy-Item -LiteralPath $source -Destination $destination -ErrorAction 'Stop'
+			$_.Version = $usedDll.Version
+		}
+		catch {
+			Write-Error "Failed to update `"$destination`"
+$_"
+		}
+		$i++
+	}
+	$GUI.Nodes.Games.ItemsSource = $null
+	$GUI.Nodes.Games.ItemsSource = $instances
+}
+
+$ButtonTask = {
+	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
+		Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
+		$TaskButton.Content = 'Enable automatic update'
+	}
+	else {
+		Register-UpdateTask
+		$GUI.Nodes.TaskButton.Content = 'Disable automatic update'
+	}
+}
+
+$ButtonScan = {
+	$dlls = Get-GameFolders | Find-SkDlls
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
+	if ($whitelist) {
+		$dlls += $whitelist
+	}
+	$instances = $dlls | Update-DllList $blacklist
+	Write-Host 'Done'
+	$GUI.Nodes.Games.ItemsSource = $null
+	$GUI.Nodes.Games.ItemsSource = $instances
+}
+
+$GUI.WPF.Add_Loaded({
+	$GUI.Nodes.Games.ItemsSource = $instances
+	})
+
+$SelectAll = {
+	
+	if ($GUI.Nodes.CheckboxSelectAll.IsChecked) {
+		$instances | ForEach-Object {
+			$_.IsChecked = $true
+		}
+	}
+	elseif ($GUI.Nodes.CheckboxSelectAll.IsChecked = $null) {
+	}
+	else {
+		$instances | ForEach-Object {
+			$_.IsChecked = $false
+			$GUI.Nodes.CheckboxSelectAll.IsChecked = $false
+		}
+	}
+	$GUI.Nodes.Games.ItemsSource = $null
+	$GUI.Nodes.Games.ItemsSource = $instances
+}
+
+$GUI.Nodes.UpdateButton.Add_Click($ButtonUpdate)
+$GUI.Nodes.ScanButton.Add_Click($ButtonScan)
+$GUI.Nodes.TaskButton.Add_Click($ButtonTask)
+$GUI.Nodes.CheckboxSelectAll.Add_Click($SelectAll)
+	
+if (! $instances) {
+	Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
+	exit 1
+}
+
+
+
+
+
+
 
 if ($NoGUI) {
 	Write-Host ''
@@ -650,6 +495,7 @@ if ($NoGUI) {
 			Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination
 		}
 	} 
-} else {
-	Show-GameList
+}
+else {
+	[void]$GUI.WPF.ShowDialog() #show window
 }
