@@ -218,7 +218,7 @@ function Update-DllList {
 	}
 }
 function Register-UpdateTask {
-	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui -scan"
+	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui"
 	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
 	$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME
 	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RunOnlyIfNetworkAvailable
@@ -291,7 +291,7 @@ $apps = $null
 
 $SK_DLLPath = Get-SkPath
 
-$SKVersions = @()
+[Array]$SKVersions = $null
 Get-SkVersion | ForEach-Object {
 	$obj = New-Object PSObject
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Name' -Value $_.Name
@@ -308,8 +308,6 @@ Get-SkVersion | ForEach-Object {
 }
 
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
-
-
 
 $SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
 $SKNewestVersion = $SKNewestVersionInternal
@@ -355,7 +353,7 @@ Write-Host 'Done'
 
 $instances = $dlls | Update-DllList $blacklist
 
-
+$LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
 $GUI = @{
 	XAML  = $null
 	WPF   = $null
@@ -364,18 +362,21 @@ $GUI = @{
 }
 
 $GUI.XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
-$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§',$SKNewestVersion
-$LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
+$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§', $SKNewestVersion
+$GUI.XAML = $GUI.XAML -replace '§potentialNewestVersion§', $potentialNewestVersion.Version
 
-if ($LightTheme) { 
-	$GUI.XAML = $GUI.XAML -replace 'BasedOn="{StaticResource DarkTheme}"','BasedOn="{StaticResource LightTheme}"'
-	$GUI.XAML = $GUI.XAML -replace 'Style="{StaticResource DarkThemeButton}"','Style="{StaticResource LightThemeButton}"'
-	
+if ($LightTheme) {
+	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'Black'
+	$GUI.XAML = $GUI.XAML -replace 'BasedOn="{StaticResource DarkTheme}"', 'BasedOn="{StaticResource LightTheme}"'
+	$GUI.XAML = $GUI.XAML -replace 'Style="{StaticResource DarkThemeButton}"', 'Style="{StaticResource LightThemeButton}"'
+}
+else {
+	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'White'
 }
 
 #Round corners in win11
 if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuild).CurrentBuild -ge 22000) {
-	$GUI.XAML = $GUI.XAML -replace 'Property="CornerRadius" Value="0"','Property="CornerRadius" Value="4"'
+	$GUI.XAML = $GUI.XAML -replace 'Property="CornerRadius" Value="0"', 'Property="CornerRadius" Value="4"'
 }
 [xml]$GUI.XAML = $GUI.XAML
 
@@ -397,14 +398,25 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
 }
 
-
 if ($SKVariants.Count) {
 	$GUI.Nodes.VariantsComboBox.ItemsSource = $SKVariants.Variant
-	$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+}
+else {
+	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	
+}
+$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+
+$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+
+
+if (($SKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SKNewestVersionInternal) {
+	$GUI.Nodes.Update.Text = "There's an update available! ($SKNewestVersionInternal)"
 }
 
+$Events = @{}
 
-$ButtonUpdate = {
+$Events.ButtonUpdate = {
 	$GUI.Nodes.Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
 		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
 		try {			
@@ -424,7 +436,7 @@ $_"
 	$GUI.Nodes.Games.ItemsSource = $instances
 }
 
-$ButtonTask = {
+$Events.ButtonTask = {
 	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
 		Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
 		$TaskButton.Content = 'Enable automatic update'
@@ -435,7 +447,7 @@ $ButtonTask = {
 	}
 }
 
-$ButtonScan = {
+$Events.ButtonScan = {
 	$dlls = Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 	if ($whitelist) {
@@ -447,11 +459,8 @@ $ButtonScan = {
 	$GUI.Nodes.Games.ItemsSource = $instances
 }
 
-$GUI.WPF.Add_Loaded({
-	$GUI.Nodes.Games.ItemsSource = $instances
-	})
 
-$SelectAll = {
+$Events.SelectAll = {
 	
 	if ($GUI.Nodes.CheckboxSelectAll.IsChecked) {
 		$instances | ForEach-Object {
@@ -470,20 +479,31 @@ $SelectAll = {
 	$GUI.Nodes.Games.ItemsSource = $instances
 }
 
-$GUI.Nodes.UpdateButton.Add_Click($ButtonUpdate)
-$GUI.Nodes.ScanButton.Add_Click($ButtonScan)
-$GUI.Nodes.TaskButton.Add_Click($ButtonTask)
-$GUI.Nodes.CheckboxSelectAll.Add_Click($SelectAll)
-	
+$Events.VariantChange = {
+	$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+}
+
+
+$GUI.Nodes.UpdateButton.Add_Click($Events.ButtonUpdate)
+$GUI.Nodes.ScanButton.Add_Click($Events.ButtonScan)
+$GUI.Nodes.TaskButton.Add_Click($Events.ButtonTask)
+$GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
+$GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
+
+$GUI.WPF.Add_Loaded({
+		$GUI.Nodes.Games.ItemsSource = $instances
+	})
+
+#$GUI.Nodes.VariantsComboBox | out-host #
+
+#$GUI.Nodes.VariantsComboBox | Get-Member -Type Event | Format-Wide -Column  4 -Property Name 
+
+
 if (! $instances) {
 	Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
 	exit 1
 }
-
-
-
-
-
 
 
 if ($NoGUI) {

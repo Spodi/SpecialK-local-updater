@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:SKLU" mc:Ignorable="d" Title="SK LU"
     Foreground="White" Background="#141414"
-    MinHeight="300" MinWidth="300"
+    MinHeight="215" MinWidth="350"
     Width="640" Height="Auto" SizeToContent="Height"
     WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
     FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
@@ -30,8 +30,7 @@
             </Style.Resources>
         </Style>
 
-        <Style TargetType="{x:Type Label}" BasedOn="{StaticResource DarkTheme}">
-        </Style>
+        <Style TargetType="{x:Type Label}" BasedOn="{StaticResource DarkTheme}"></Style>
 
         <Style x:Key="DarkThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource DarkTheme}">
             <Setter Property="Background" Value="#333333" />
@@ -77,8 +76,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
-        <Style TargetType="DataGridRowHeader" BasedOn="{StaticResource DarkTheme}">
-        </Style>
+        <Style TargetType="DataGridRowHeader" BasedOn="{StaticResource DarkTheme}"></Style>
         <Style TargetType="DataGridCell" BasedOn="{StaticResource DarkTheme}">
             <Setter Property="Template">
                 <Setter.Value>
@@ -94,30 +92,16 @@
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="200" />
+            <RowDefinition Height="Auto" />
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <Label Grid.Row="0">
-            <TextBlock>
-                Installed SpecialK version:
-                <LineBreak />
-                <Bold Foreground="Orange">$version</Bold>
-                <LineBreak />
-                <Bold Foreground="Green">There's an update available! ($SpecialKNewestVersionInternal)</Bold>
-                <LineBreak />
-                Variant to use:
-                <LineBreak />
-
-            </TextBlock>
-        </Label>
-        <ComboBox x:Name="VariantsComboBox" MinWidth="82" HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+        <ComboBox x:Name="VariantsComboBox" MinWidth="95" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,52,10,0" MaxWidth="200" />
         <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
                     <DataGridCheckBoxColumn.Header>
-                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True">
-                        </CheckBox>
+                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True"></CheckBox>
                     </DataGridCheckBoxColumn.Header>
                 </DataGridCheckBoxColumn>
                 <DataGridTextColumn Header="Directory" Binding="{Binding Path=Directory}" MinWidth="70" Width="*" IsReadOnly="True">
@@ -150,6 +134,9 @@
                                 <Trigger Property="Text" Value="§SKNewestVersion§">
                                     <Setter Property="Foreground" Value="Green" />
                                 </Trigger>
+                                <Trigger Property="Text" Value="§potentialNewestVersion§">
+                                    <Setter Property="Foreground" Value="§VersionForeground§" />
+                                </Trigger>
                             </Style.Triggers>
                             <Setter Property="Foreground" Value="Orange" />
                             <Setter Property="TextAlignment" Value="Center" />
@@ -158,8 +145,12 @@
                 </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
-        <Button x:Name="UpdateButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" Width="100">Update</Button>
-        <Button x:Name="ScanButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" Width="100">Scan</Button>
-        <Button x:Name="TaskButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" Width="Auto">Enable Automatic Update</Button>
+        <Button x:Name="UpdateButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" Width="100" Margin="10,0,10,10">Update</Button>
+        <Button x:Name="ScanButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" Width="100" Margin="10,0,10,10">Scan</Button>
+        <Button x:Name="TaskButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" Width="Auto" Margin="10,0,10,10">Enable Automatic Update</Button>
+        <Label Content="Selected variant:" HorizontalAlignment="Left" Margin="10,35,0,0" VerticalAlignment="Top" Padding="0,5,-4,5" />
+        <Label Content="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold"/>
+        <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version"/>
+        <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right"/>
     </Grid>
 </Window>
