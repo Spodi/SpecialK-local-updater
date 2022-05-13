@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+SK_LU_cache.json
+SK_LU_settings.json
+
 # User-specific files
 *.rsuser
 *.suo
