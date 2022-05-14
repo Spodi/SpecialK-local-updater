@@ -388,7 +388,7 @@ $GUI.Nodes = $GUI.XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object 
 	@{ $_.Name = $GUI.WPF.FindName($_.Name) }
 }
 if ($LightTheme) {
-	$GUI.WPF.Background = '#f2f2f2'
+	$GUI.WPF.Background = 'white'
 	$GUI.WPF.Foreground = 'black'
 
 }

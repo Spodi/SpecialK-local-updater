@@ -4,7 +4,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:SKLU" mc:Ignorable="d" Title="SK LU"
-    Foreground="White" Background="#141414"
+    Foreground="White" Background="#1a1a1a"
     MinHeight="215" MinWidth="350"
     Width="640" Height="Auto" SizeToContent="Height"
     WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
@@ -29,8 +29,6 @@
                 </Style>
             </Style.Resources>
         </Style>
-
-        <Style TargetType="{x:Type Label}" BasedOn="{StaticResource DarkTheme}"></Style>
 
         <Style x:Key="DarkThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource DarkTheme}">
             <Setter Property="Background" Value="#333333" />
@@ -97,10 +95,10 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Label Content="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold" />
+        <TextBlock Text="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold" />
         <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version" />
         <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right" />
-        <Label Content="Selected variant:" HorizontalAlignment="Left" Margin="10,25,0,0" VerticalAlignment="Top" Padding="0,5,0,5" />
+        <TextBlock Text="Selected variant:" HorizontalAlignment="Left" Margin="10,25,0,0" VerticalAlignment="Top" Padding="0,5,0,5" />
         <ComboBox x:Name="VariantsComboBox" MinWidth="95" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,52,10,0" MaxWidth="200" />
 
         <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
