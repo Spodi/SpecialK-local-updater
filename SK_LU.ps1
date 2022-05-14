@@ -307,19 +307,6 @@ Get-SkVersion | ForEach-Object {
 	Remove-Variable 'obj', 'variant'
 }
 
-$SKVariants = ($SKVersions | Select-Object Variant -Unique)
-Write-Host -NoNewline 'Fetching https://sk-data.special-k.info/repository.json for update info...'
-$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
-Write-Host 'Done'
-$SKNewestVersion = $SKNewestVersionInternal
-$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
-if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
-	$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
-	$SKNewestVersion = $potentialNewestVersion.Version
-}
-
-
-
 
 
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
@@ -364,6 +351,19 @@ if ($NoGUI) {
 	}
 	exit 0
 }
+
+$SKVariants = ($SKVersions | Select-Object Variant -Unique)
+Write-Host -NoNewline 'Fetching https://sk-data.special-k.info/repository.json for update info...'
+$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+Write-Host 'Done'
+$SKNewestVersion = $SKNewestVersionInternal
+$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
+if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
+	$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
+	$SKNewestVersion = $potentialNewestVersion.Version
+}
+
+
 
 
 $LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
