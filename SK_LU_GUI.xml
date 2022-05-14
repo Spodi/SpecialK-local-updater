@@ -131,14 +131,14 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Version" Binding="{Binding Path=Version}" MinWidth="60" Width="Auto" MaxWidth="80" IsReadOnly="True">
+                <DataGridTextColumn x:Name="VersionColumn" Header="Version" Binding="{Binding Path=Version}" MinWidth="60" Width="Auto" MaxWidth="80" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="{x:Type TextBlock}">
                             <Style.Triggers>
-                                <Trigger Property="Text" Value="§SKNewestVersion§">
+                                <Trigger Property="Text" Value="SKNewestVersion">
                                     <Setter Property="Foreground" Value="Green" />
                                 </Trigger>
-                                <Trigger Property="Text" Value="§potentialNewestVersion§">
+                                <Trigger Property="Text" Value="potentialNewestVersion">
                                     <Setter Property="Foreground" Value="§VersionForeground§" />
                                 </Trigger>
                             </Style.Triggers>

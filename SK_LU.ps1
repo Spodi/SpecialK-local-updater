@@ -308,10 +308,9 @@ Get-SkVersion | ForEach-Object {
 }
 
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
-
-if (!$NoGUI) {
-	$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
-}
+Write-Host -NoNewline 'Fetching https://sk-data.special-k.info/repository.json for update info...'
+$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+Write-Host 'Done'
 $SKNewestVersion = $SKNewestVersionInternal
 $potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
 if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
@@ -355,6 +354,18 @@ Write-Host 'Done'
 
 $instances = $dlls | Update-DllList $blacklist
 
+if ($NoGUI) {
+	$instances | ForEach-Object {
+		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
+		if ($destination -notin $blacklist) {	
+			Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$destination`""
+			Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination
+		}
+	}
+	exit 0
+}
+
+
 $LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
 $GUI = @{
 	XAML  = $null
@@ -364,13 +375,13 @@ $GUI = @{
 }
 
 $GUI.XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
-$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§', $SKNewestVersion
-$GUI.XAML = $GUI.XAML -replace '§potentialNewestVersion§', $potentialNewestVersion.Version
+#$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§', $SKNewestVersion
+#$GUI.XAML = $GUI.XAML -replace '§potentialNewestVersion§', $potentialNewestVersion.Version
 
 if ($LightTheme) {
-	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'Black'
 	$GUI.XAML = $GUI.XAML -replace 'BasedOn="{StaticResource DarkTheme}"', 'BasedOn="{StaticResource LightTheme}"'
 	$GUI.XAML = $GUI.XAML -replace 'Style="{StaticResource DarkThemeButton}"', 'Style="{StaticResource LightThemeButton}"'
+	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'Black'
 }
 else {
 	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'White'
@@ -392,8 +403,10 @@ $GUI.Nodes = $GUI.XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object 
 if ($LightTheme) {
 	$GUI.WPF.Background = 'white'
 	$GUI.WPF.Foreground = 'black'
-
 }
+$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'potentialNewestVersion' | ForEach-Object { $_.Value = $potentialNewestVersion.Version }
+$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'SKNewestVersion' |  ForEach-Object { $_.Value = $SKNewestVersion }
+
 
 if (Test-Path "$PSScriptRoot\SKIF.ico") {
 	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
@@ -421,7 +434,6 @@ $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ig
 	else {
 		$GUI.Nodes.TaskButton.Content = 'Enable Automatic Update'
 	})
-
 
 $Events = @{}
 
@@ -504,7 +516,7 @@ $GUI.WPF.Add_Loaded({
 		$GUI.Nodes.Games.ItemsSource = $instances
 	})
 
-#$GUI.Nodes.VariantsComboBox | out-host #
+#$GUI.Nodes.VersionColumn.ElementStyle.Triggers | out-host #
 
 #$GUI.Nodes.VariantsComboBox | Get-Member -Type Event | Format-Wide -Column  4 -Property Name 
 
@@ -514,17 +526,5 @@ if (! $instances) {
 	exit 1
 }
 
-
-if ($NoGUI) {
-	Write-Host ''
-	$instances | ForEach-Object {
-		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
-		if ($destination -notin $blacklist) {	
-			Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$destination`""
-			Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination
-		}
-	} 
-}
-else {
-	[void]$GUI.WPF.ShowDialog() #show window
-}
+[void]$GUI.WPF.ShowDialog() #show window
+exit 0
