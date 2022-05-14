@@ -10,6 +10,7 @@
     WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
     FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
     <Window.Resources>
+
         <Style x:Key="DarkTheme" TargetType="{x:Type Control}">
             <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="#141414" />
@@ -19,7 +20,6 @@
                 </Style>
             </Style.Resources>
         </Style>
-
         <Style x:Key="LightTheme" TargetType="{x:Type Control}">
             <Setter Property="Foreground" Value="Black" />
             <Setter Property="Background" Value="#f2f2f2" />
@@ -35,8 +35,8 @@
         <Style x:Key="DarkThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource DarkTheme}">
             <Setter Property="Background" Value="#333333" />
             <Setter Property="BorderBrush" Value="#434343" />
-            <Setter Property="Margin" Value="10" />
-            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="10,0,10,10" />
+            <Setter Property="Padding" Value="5" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Foreground" Value="Black" />
@@ -46,8 +46,8 @@
         <Style x:Key="LightThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource LightTheme}">
             <Setter Property="Background" Value="#d9d9d9" />
             <Setter Property="BorderBrush" Value="#c9c9c9" />
-            <Setter Property="Margin" Value="10" />
-            <Setter Property="Padding" Value="10" />
+            <Setter Property="Margin" Value="10,0,10,10" />
+            <Setter Property="Padding" Value="5" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Foreground" Value="Black" />
@@ -96,7 +96,13 @@
             <RowDefinition />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+
+        <Label Content="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold" />
+        <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version" />
+        <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right" />
+        <Label Content="Selected variant:" HorizontalAlignment="Left" Margin="10,25,0,0" VerticalAlignment="Top" Padding="0,5,0,5" />
         <ComboBox x:Name="VariantsComboBox" MinWidth="95" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,52,10,0" MaxWidth="200" />
+
         <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
@@ -145,12 +151,10 @@
                 </DataGridTextColumn>
             </DataGrid.Columns>
         </DataGrid>
-        <Button x:Name="UpdateButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" Width="100" Margin="10,0,10,10">Update</Button>
-        <Button x:Name="ScanButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" Width="100" Margin="10,0,10,10">Scan</Button>
-        <Button x:Name="TaskButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" Width="Auto" Margin="10,0,10,10">Enable Automatic Update</Button>
-        <Label Content="Selected variant:" HorizontalAlignment="Left" Margin="10,35,0,0" VerticalAlignment="Top" Padding="0,5,-4,5" />
-        <Label Content="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold"/>
-        <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version"/>
-        <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right"/>
+
+        <Button x:Name="UpdateButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" MinWidth="75">Update</Button>
+        <Button x:Name="ScanButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75">Scan</Button>
+        <Button x:Name="TaskButton" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" MinWidth="75">Enable Automatic Update</Button>
+
     </Grid>
 </Window>
