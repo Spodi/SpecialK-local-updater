@@ -1,0 +1,182 @@
+<Window x:Class="SKLU.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:local="clr-namespace:SKLU" mc:Ignorable="d" Title="SK LU"
+    Foreground="White" Background="#1a1a1a"
+    MinHeight="215" MinWidth="350"
+    Width="640" Height="Auto" SizeToContent="Height"
+    WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
+    FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
+    <Window.Resources>
+
+        <Style x:Key="DarkTheme" TargetType="{x:Type Control}">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Background" Value="#141414" />
+            <Style.Resources>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="CornerRadius" Value="0" />
+                </Style>
+            </Style.Resources>
+        </Style>
+        <Style x:Key="LightTheme" TargetType="{x:Type Control}">
+            <Setter Property="Foreground" Value="Black" />
+            <Setter Property="Background" Value="#f2f2f2" />
+            <Style.Resources>
+                <Style TargetType="{x:Type Border}">
+                    <Setter Property="CornerRadius" Value="0" />
+                </Style>
+            </Style.Resources>
+        </Style>
+
+        <Style x:Key="DarkThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="Background" Value="#333333" />
+            <Setter Property="BorderBrush" Value="#434343" />
+            <Setter Property="Margin" Value="10,0,10,10" />
+            <Setter Property="Padding" Value="5" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="Black" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="LightThemeButton" TargetType="{x:Type Button}" BasedOn="{StaticResource LightTheme}">
+            <Setter Property="Background" Value="#d9d9d9" />
+            <Setter Property="BorderBrush" Value="#c9c9c9" />
+            <Setter Property="Margin" Value="10,0,10,10" />
+            <Setter Property="Padding" Value="5" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="Black" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+
+        <Style TargetType="{x:Type DataGrid}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="HorizontalGridLinesBrush" Value="#585858" />
+            <Setter Property="VerticalGridLinesBrush" Value="#585858" />
+            <Setter Property="BorderBrush" Value="#585858" />
+            <Setter Property="Margin" Value="10" />
+            <Setter Property="Padding" Value="4,8,4,8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="RowHeight" Value="30" />
+        </Style>
+        <Style TargetType="{x:Type DataGridRow}" BasedOn="{StaticResource DarkTheme}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2b2b2b" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type DataGridColumnHeader}" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style TargetType="DataGridRowHeader" BasedOn="{StaticResource DarkTheme}"></Style>
+        <Style TargetType="DataGridCell" BasedOn="{StaticResource DarkTheme}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Grid Background="{TemplateBinding Background}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Padding" Value="40" />
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold" />
+        <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version" />
+        <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right" />
+        <TextBlock Text="Selected variant:" HorizontalAlignment="Left" Margin="10,25,0,0" VerticalAlignment="Top" Padding="0,5,0,5" />
+        <ComboBox x:Name="VariantsComboBox" MinWidth="95" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,52,10,0" MaxWidth="200" />
+
+        <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+                <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
+                    <DataGridCheckBoxColumn.Header>
+                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True"></CheckBox>
+                    </DataGridCheckBoxColumn.Header>
+                </DataGridCheckBoxColumn>
+                <DataGridTextColumn Header="Directory" Binding="{Binding Path=Directory}" MinWidth="70" Width="*" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Name" Binding="{Binding Path=Name}" MinWidth="70" Width="Auto" MaxWidth="100" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Bits" Binding="{Binding Path=Bits}" MinWidth="35" MaxWidth="35" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Setter Property="TextAlignment" Value="Center" />
+                            <Setter Property="Margin" Value="10,0,10,0" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn x:Name="VersionColumn" Header="Version" Binding="{Binding Path=Version}" MinWidth="60" Width="Auto" MaxWidth="80" IsReadOnly="True">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="{x:Type TextBlock}">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="SKNewestVersion">
+                                    <Setter Property="Foreground" Value="Green" />
+                                </Trigger>
+                                <Trigger Property="Text" Value="potentialNewestVersion">
+                                    <Setter Property="Foreground" Value="§VersionForeground§" />
+                                </Trigger>
+                            </Style.Triggers>
+                            <Setter Property="Foreground" Value="Orange" />
+                            <Setter Property="TextAlignment" Value="Center" />
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Button x:Name="UpdateButton" Content="Update" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
+            <Button.ToolTip>
+                <TextBlock>
+                    Copys the current selected variant to the checked locations.
+                </TextBlock>
+            </Button.ToolTip>
+        </Button>
+        <Button x:Name="ScanButton" Content="Scan" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
+            <Button.ToolTip>
+                <TextBlock>
+                    Scans alls known game folders for local Special K installations and updates the cache of known dlls.
+                    <LineBreak />
+                    Can take a long time!
+                </TextBlock>
+            </Button.ToolTip>
+        </Button>
+        <Button x:Name="TaskButton" Content="Automatic Update" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
+            <Button.ToolTip>
+                <TextBlock>
+                    Enables automatic update of known dlls (except blacklisted) via sheduled task.
+                    <LineBreak />
+                    Known dlls are all cached dlls from the last scan and AdditionalDLLs from the setting file.
+                    <LineBreak />
+                    Please edit the settings file (SK_LU_settings.json) to set blacklisted and additional dlls.
+                </TextBlock>
+            </Button.ToolTip>
+        </Button>
+
+    </Grid>
+</Window>
