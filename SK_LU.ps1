@@ -309,7 +309,9 @@ Get-SkVersion | ForEach-Object {
 
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
 
-$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+if (!$NoGUI) {
+	$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+}
 $SKNewestVersion = $SKNewestVersionInternal
 $potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
 if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
@@ -393,7 +395,6 @@ if ($LightTheme) {
 
 }
 
-
 if (Test-Path "$PSScriptRoot\SKIF.ico") {
 	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
 }
@@ -413,6 +414,14 @@ $GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[
 if (($SKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SKNewestVersionInternal) {
 	$GUI.Nodes.Update.Text = "There's an update available! ($SKNewestVersionInternal)"
 }
+
+$(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
+		$GUI.Nodes.TaskButton.Content = 'Disable Automatic Update'
+	}
+	else {
+		$GUI.Nodes.TaskButton.Content = 'Enable Automatic Update'
+	})
+
 
 $Events = @{}
 
