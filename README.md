@@ -1,4 +1,4 @@
-# SpecialK-local-updater
+# Special K Local Updater (SKLU)
 
 This script scan all game folders SKIF also knows about and replaces any local Special K DLLs found with the ones in Special Ks default install folder.
 
