@@ -335,7 +335,7 @@ else {
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
 }
 if ($whitelist) {
-	$dlls += $whitelist
+	$dlls += $whitelist | Sort-Object -Unique | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
 Write-Host 'Done'
 
