@@ -202,12 +202,12 @@ function Update-DllList {
 	)
 	process {
 		$obj = New-Object PSObject
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $_.Name
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Directory -Value $_.DirectoryName
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name InternalName -Value $_.VersionInfo.InternalName
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $_.VersionInfo.ProductVersion
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
-		if ((Join-Path -Path $_.DirectoryName -ChildPath $_.Name) -in $blacklist) {
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $dlls.Name
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name Directory -Value $dlls.DirectoryName
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name InternalName -Value $dlls.VersionInfo.InternalName
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $dlls.VersionInfo.ProductVersion
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($dlls.VersionInfo.InternalName -replace '[^0-9]' , '')
+		if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 		}
 		else {
@@ -335,7 +335,7 @@ else {
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
 }
 if ($whitelist) {
-	$dlls += $whitelist
+	$dlls += $whitelist | Sort-Object -Unique | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
 Write-Host 'Done'
 
@@ -353,59 +353,49 @@ if ($NoGUI) {
 }
 
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
-Write-Host -NoNewline 'Fetching https://sk-data.special-k.info/repository.json for update info...'
-$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest https://sk-data.special-k.info/repository.json -ErrorAction SilentlyContinue).Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
-Write-Host 'Done'
-$SKNewestVersion = $SKNewestVersionInternal
 $potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
-if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
-	$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
-	$SKNewestVersion = $potentialNewestVersion.Version
-}
 
 
 
+$GUI = [hashtable]::Synchronized(@{})
 
 $LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
 $GUI = @{
-	XAML  = $null
 	WPF   = $null
 	NsMgr = $null
 	Nodes = @() 
 }
 
-$GUI.XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
+[string]$XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
 #$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§', $SKNewestVersion
 #$GUI.XAML = $GUI.XAML -replace '§potentialNewestVersion§', $potentialNewestVersion.Version
 
 if ($LightTheme) {
-	$GUI.XAML = $GUI.XAML -replace 'BasedOn="{StaticResource DarkTheme}"', 'BasedOn="{StaticResource LightTheme}"'
-	$GUI.XAML = $GUI.XAML -replace 'Style="{StaticResource DarkThemeButton}"', 'Style="{StaticResource LightThemeButton}"'
-	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'Black'
+	$XAML = $XAML -replace 'BasedOn="{StaticResource DarkTheme}"', 'BasedOn="{StaticResource LightTheme}"'
+	$XAML = $XAML -replace 'Style="{StaticResource DarkThemeButton}"', 'Style="{StaticResource LightThemeButton}"'
+	$XAML = $XAML -replace '§VersionForeground§', 'Black'
 }
 else {
-	$GUI.XAML = $GUI.XAML -replace '§VersionForeground§', 'White'
+	$XAML = $XAML -replace '§VersionForeground§', 'White'
 }
 
 #Round corners in win11
 if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -Name CurrentBuild).CurrentBuild -ge 22000) {
-	$GUI.XAML = $GUI.XAML -replace 'Property="CornerRadius" Value="0"', 'Property="CornerRadius" Value="4"'
+	$XAML = $XAML -replace 'Property="CornerRadius" Value="0"', 'Property="CornerRadius" Value="4"'
 }
-[xml]$GUI.XAML = $GUI.XAML
+[xml]$XAML = $XAML
 
 
 [void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
-$GUI.NsMgr = (New-XMLNamespaceManager $GUI.XAML)
-$GUI.WPF = [Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $GUI.XAML) )
-$GUI.Nodes = $GUI.XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object {
+$GUI.NsMgr = (New-XMLNamespaceManager $XAML)
+$GUI.WPF = [Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAML) )
+$GUI.Nodes = $XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object {
 	@{ $_.Name = $GUI.WPF.FindName($_.Name) }
 }
 if ($LightTheme) {
 	$GUI.WPF.Background = 'white'
 	$GUI.WPF.Foreground = 'black'
 }
-$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'potentialNewestVersion' | ForEach-Object { $_.Value = $potentialNewestVersion.Version }
-$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'SKNewestVersion' |  ForEach-Object { $_.Value = $SKNewestVersion }
 
 
 if (Test-Path "$PSScriptRoot\SKIF.ico") {
@@ -423,10 +413,7 @@ $GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
 $selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
 $GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
 
-
-if (($SKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SKNewestVersionInternal) {
-	$GUI.Nodes.Update.Text = "There's an update available! ($SKNewestVersionInternal)"
-}
+$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'potentialNewestVersion' | ForEach-Object { $_.Value = $potentialNewestVersion.Version }
 
 $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
 		$GUI.Nodes.TaskButton.Content = 'Disable Automatic Update'
@@ -520,11 +507,65 @@ $GUI.WPF.Add_Loaded({
 
 #$GUI.Nodes.VariantsComboBox | Get-Member -Type Event | Format-Wide -Column  4 -Property Name 
 
+$UpdateRunspace = [runspacefactory]::CreateRunspace()
+$UpdateRunspace.ApartmentState = 'STA'
+$UpdateRunspace.ThreadOptions = 'ReuseThread'
+$UpdateRunspace.Open()
+$UpdateRunspace.SessionStateProxy.SetVariable('GUI', $GUI)
+$UpdateRunspace.SessionStateProxy.SetVariable('SKVersions', $SKVersions)
+$UpdatePowershell = [powershell]::Create()
+$UpdatePowershell.Runspace = $UpdateRunspace
+[void]$UpdatePowershell.AddScript({
+		
+		$i = 0
+		while ($i -le 3) {
+			$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+			if ($SKNewestVersionInternal) {
+				break
+			}
+			else {
+				$i++
+			}
+		}
+		$SKNewestVersion = $SKNewestVersionInternal
+		$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
+		if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
+			$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
+			$SKNewestVersion = $potentialNewestVersion.Version
+		}
+		
+		Write-output $GUI.Nodes.VersionColumn.Dispatcher.Invoke([action] {($GUI.Nodes.VersionColumn.ElementStyle.Triggers | Where-object Value -eq 'SKNewestVersion').Value = $SKNewestVersion }) 
+		
+		$GUI.Nodes.Games.ItemsSource.Dispatcher.invoke([action] { $GUI.Nodes.Games.ItemsSource = $null })
+		$GUI.Nodes.Games.ItemsSource.Dispatcher.invoke([action] { $GUI.Nodes.Games.ItemsSource = $instances })
+
+		if ($SKNewestVersionInternal) {
+			if (($SKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SKNewestVersionInternal) {
+				$GUI.Nodes.Update.Dispatcher.invoke([action] {
+						$GUI.Nodes.Update.Text = "There's an update available! ($SKNewestVersionInternal)"
+					})
+			}
+		}
+		else {
+			$GUI.Nodes.Update.Dispatcher.invoke([action] {
+					$GUI.Nodes.Update.Foreground = 'Red'
+				})
+			$GUI.Nodes.Update.Dispatcher.invoke([action] {
+					$GUI.Nodes.Update.Text = 'Update check failed.'
+				})
+		}
+
+	})
 
 if (! $instances) {
 	Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
 	exit 1
 }
+$UpdateHandle = $UpdatePowershell.BeginInvoke()
 
 [void]$GUI.WPF.ShowDialog() #show window
+
+$UpdatePowershell.EndInvoke($UpdateHandle) | out-Host
+$UpdatePowershell.Dispose()
+$UpdateRunspace.CloseAsync()
 exit 0
