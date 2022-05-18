@@ -8,7 +8,7 @@
 	You can add the absolute path to local DLLs to the "AdditionalDLLs" array in "SK_LocalUpdater.json" to also update those.
 	
 	.Notes
-	Createdy by Spodi and Wall_SoGB
+	Created by Spodi and Wall_SoGB
  #>
 #region <FUNCTIONS>
 Function ConvertFrom-VDF {
@@ -191,7 +191,7 @@ function Find-SkDlls {
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
-		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object -not LinkType | Write-Output
+		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Write-Output
 	}
 }
 function Update-DllList { 
