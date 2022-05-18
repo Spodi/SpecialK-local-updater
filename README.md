@@ -19,8 +19,8 @@ The auto update button currently creates a daily task that makes use of `-NoGUI`
         "C:\\Users\\Spodi\\AppData\\Local\\osu!\\OpenGL32.dll"
                   ],
     "AdditionalDLLs":  [
-        "D:\\SteamLibrary\\SteamApps\\common\\Dungeons and Dragons Online\\dxgi.dll",
-        "D:\\SteamLibrary\\SteamApps\\common\\Dungeons and Dragons Online\\x64\\dxgi.dll"
+        "D:\\Games\\Dungeons and Dragons Online\\dxgi.dll",
+        "D:\\Games\\Dungeons and Dragons Online\\x64\\dxgi.dll"
                        ]
 }
 ```
