@@ -306,8 +306,8 @@ Get-SkVersion | ForEach-Object {
 	$SKVersions += $obj
 	Remove-Variable 'obj', 'variant'
 }
-
-
+$NewestLocal = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
+$SKVariants = ($SKVersions | Select-Object Variant -Unique)
 
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
 	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist
@@ -352,14 +352,10 @@ if ($NoGUI) {
 	exit 0
 }
 
-$SKVariants = ($SKVersions | Select-Object Variant -Unique)
-$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
-
-
-
-$GUI = [hashtable]::Synchronized(@{})
 
 $LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
+
+$GUI = [hashtable]::Synchronized(@{})
 $GUI = @{
 	WPF   = $null
 	NsMgr = $null
@@ -367,8 +363,7 @@ $GUI = @{
 }
 
 [string]$XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
-#$GUI.XAML = $GUI.XAML -replace '§SKNewestVersion§', $SKNewestVersion
-#$GUI.XAML = $GUI.XAML -replace '§potentialNewestVersion§', $potentialNewestVersion.Version
+
 
 if ($LightTheme) {
 	$XAML = $XAML -replace 'BasedOn="{StaticResource DarkTheme}"', 'BasedOn="{StaticResource LightTheme}"'
@@ -406,14 +401,23 @@ if ($SKVariants.Count) {
 	$GUI.Nodes.VariantsComboBox.ItemsSource = $SKVariants.Variant
 }
 else {
-	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	
+	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry.
 }
 $GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
 
 $selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
-$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+if ($selectedVariant[0] -and $selectedVariant[1]) {
+	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+}
+elseif ($selectedVariant[0]) {
+	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
+}
+else {
+	$GUI.Nodes.Version.Text = "Error"
+}
 
-$GUI.Nodes.VersionColumn.ElementStyle.Triggers |  Where-object Value -eq 'potentialNewestVersion' | ForEach-Object { $_.Value = $potentialNewestVersion.Version }
+$GUI.Nodes.Update.Text = 'Checking SKs Discord branch for updates...'
+$GUI.Nodes.VersionColumn.ElementStyle.Triggers[1].Value = $NewestLocal.Version
 
 $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
 		$GUI.Nodes.TaskButton.Content = 'Disable Automatic Update'
@@ -455,11 +459,11 @@ $Events.ButtonTask = {
 	}
 }
 
-$Events.ButtonScan = {
+$Events.ButtonScan = { 
 	$dlls = Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 	if ($whitelist) {
-		$dlls += $whitelist
+		$dlls += $whitelist | Sort-Object -Unique | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 	}
 	$instances = $dlls | Update-DllList $blacklist
 	Write-Host 'Done'
@@ -489,7 +493,15 @@ $Events.SelectAll = {
 
 $Events.VariantChange = {
 	$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
-	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+	if ($selectedVariant[0] -and $selectedVariant[1]) {
+		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
+	}
+	elseif ($selectedVariant[0]) {
+		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
+	}
+	else {
+		$GUI.Nodes.Version.Text = "Error"
+	}
 }
 
 
@@ -513,48 +525,43 @@ $UpdateRunspace.ThreadOptions = 'ReuseThread'
 $UpdateRunspace.Open()
 $UpdateRunspace.SessionStateProxy.SetVariable('GUI', $GUI)
 $UpdateRunspace.SessionStateProxy.SetVariable('SKVersions', $SKVersions)
+$UpdateRunspace.SessionStateProxy.SetVariable('NewestLocal', $NewestLocal)
 $UpdatePowershell = [powershell]::Create()
 $UpdatePowershell.Runspace = $UpdateRunspace
 [void]$UpdatePowershell.AddScript({
 		
 		$i = 0
 		while ($i -le 3) {
-			$SKNewestVersionInternal = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
-			if ($SKNewestVersionInternal) {
+			$NewestRemote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+			if ($NewestRemote) {
 				break
 			}
 			else {
 				$i++
 			}
 		}
-		$SKNewestVersion = $SKNewestVersionInternal
-		$potentialNewestVersion = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
-		if ($potentialNewestVersion.VersionInternal -gt $SKNewestVersionInternal) {
-			$SKNewestVersionInternal = $potentialNewestVersion.VersionInternal
-			$SKNewestVersion = $potentialNewestVersion.Version
-		}
 		
-		Write-output $GUI.Nodes.VersionColumn.Dispatcher.Invoke([action] {($GUI.Nodes.VersionColumn.ElementStyle.Triggers | Where-object Value -eq 'SKNewestVersion').Value = $SKNewestVersion }) 
-		
-		$GUI.Nodes.Games.ItemsSource.Dispatcher.invoke([action] { $GUI.Nodes.Games.ItemsSource = $null })
-		$GUI.Nodes.Games.ItemsSource.Dispatcher.invoke([action] { $GUI.Nodes.Games.ItemsSource = $instances })
-
-		if ($SKNewestVersionInternal) {
-			if (($SKVersions.VersionInternal | Select-Object -Unique -First 1) -lt $SKNewestVersionInternal) {
-				$GUI.Nodes.Update.Dispatcher.invoke([action] {
-						$GUI.Nodes.Update.Text = "There's an update available! ($SKNewestVersionInternal)"
-					})
-			}
-		}
-		else {
-			$GUI.Nodes.Update.Dispatcher.invoke([action] {
+		if (!$NewestRemote) {
+			$GUI.WPF.Dispatcher.invoke([action] {
 					$GUI.Nodes.Update.Foreground = 'Red'
 				})
-			$GUI.Nodes.Update.Dispatcher.invoke([action] {
+			$GUI.WPF.Dispatcher.invoke([action] {
 					$GUI.Nodes.Update.Text = 'Update check failed.'
 				})
+			exit 1
 		}
+		$GUI.WPF.Dispatcher.Invoke([action] {
+				$GUI.Nodes.VersionColumn.ElementStyle.Triggers[0].Value = $NewestRemote #Why you no work?
+			})
 
+		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
+			$GUI.WPF.Dispatcher.invoke([action] {
+					$GUI.Nodes.Update.Foreground = 'Green'
+				})
+			$GUI.WPF.Dispatcher.invoke([action] {
+					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
+				})
+		}
 	})
 
 if (! $instances) {
