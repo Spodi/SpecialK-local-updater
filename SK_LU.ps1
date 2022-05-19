@@ -543,10 +543,10 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 		
 		if (!$NewestRemote) {
 			$GUI.WPF.Dispatcher.invoke([action] {
-					$GUI.Nodes.Update.Foreground = 'Red'
+					$GUI.Nodes.Update.Text = 'Update check failed.'
 				})
 			$GUI.WPF.Dispatcher.invoke([action] {
-					$GUI.Nodes.Update.Text = 'Update check failed.'
+					$GUI.Nodes.Update.Foreground = 'Red'
 				})
 			exit 1
 		}
@@ -556,10 +556,10 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 
 		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
 			$GUI.WPF.Dispatcher.invoke([action] {
-					$GUI.Nodes.Update.Foreground = 'Green'
+					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
 				})
 			$GUI.WPF.Dispatcher.invoke([action] {
-					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
+					$GUI.Nodes.Update.Foreground = 'Green'
 				})
 		}
 	})
