@@ -97,7 +97,7 @@
 
         <TextBlock Text="Special K" HorizontalAlignment="Left" Margin="10,5,0,5" VerticalAlignment="Top" Padding="0,0,0,0" FontWeight="Bold" />
         <TextBlock x:Name="Version" HorizontalAlignment="Right" Margin="120,5,10,5" VerticalAlignment="Top" Text="$version" />
-        <TextBlock x:Name="Update" Margin="220,25,10,0" Foreground="Green" TextWrapping="Wrap" HorizontalAlignment="Right" />
+        <TextBlock x:Name="Update" Margin="220,25,10,0" TextWrapping="Wrap" HorizontalAlignment="Right" />
         <TextBlock Text="Selected variant:" HorizontalAlignment="Left" Margin="10,25,0,0" VerticalAlignment="Top" Padding="0,5,0,5" />
         <ComboBox x:Name="VariantsComboBox" MinWidth="95" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,52,10,0" MaxWidth="200" />
 
@@ -135,10 +135,10 @@
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="{x:Type TextBlock}">
                             <Style.Triggers>
-                                <Trigger Property="Text" Value="SKNewestVersion">
+                                <Trigger Property="Text" Value="NewestRemote">
                                     <Setter Property="Foreground" Value="Green" />
                                 </Trigger>
-                                <Trigger Property="Text" Value="potentialNewestVersion">
+                                <Trigger Property="Text" Value="NewestLocal">
                                     <Setter Property="Foreground" Value="§VersionForeground§" />
                                 </Trigger>
                             </Style.Triggers>
