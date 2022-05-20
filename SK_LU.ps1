@@ -381,7 +381,7 @@ if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 [xml]$XAML = $XAML
 
 
-[void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
+Add-Type -AssemblyName 'PresentationFramework'
 $GUI.NsMgr = (New-XMLNamespaceManager $XAML)
 $GUI.WPF = [Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAML) )
 $GUI.Nodes = $XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object {
@@ -542,25 +542,26 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 		}
 		
 		if (!$NewestRemote) {
-			[void]$GUI.WPF.Dispatcher.InvokeAsync([action] {
+			$GUI.WPF.Dispatcher.Invoke([action] {
 					$GUI.Nodes.Update.Text = 'Update check failed.'
-				}, Background)
-			$GUI.WPF.Dispatcher.invoke([action] {
 					$GUI.Nodes.Update.Foreground = 'Red'
-				}, Background)
+				})
 			exit 1
 		}
 		$GUI.WPF.Dispatcher.Invoke([action] {
 				$GUI.Nodes.VersionColumn.ElementStyle.Triggers[0].Value = $NewestRemote #Why you no work?
-			}, Background)
+			})
 
 		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
-			[void]$GUI.WPF.Dispatcher.InvokeAsync([action] {
-					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
-				}, Background)
 			$GUI.WPF.Dispatcher.Invoke([action] {
+					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
 					$GUI.Nodes.Update.Foreground = 'Green'
-				}, Background)
+				})
+		}
+		else {
+			$GUI.WPF.Dispatcher.Invoke([action] {
+				$GUI.Nodes.Update.Text = ""
+			})
 		}
 	})
 
