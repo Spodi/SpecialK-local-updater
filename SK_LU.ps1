@@ -451,7 +451,7 @@ $_"
 $Events.ButtonTask = {
 	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
 		Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
-		$TaskButton.Content = 'Enable automatic update'
+		$GUI.Nodes.TaskButton.Content = 'Enable automatic update'
 	}
 	else {
 		Register-UpdateTask

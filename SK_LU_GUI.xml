@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:SKLU" mc:Ignorable="d" Title="SK LU"
     Foreground="White" Background="#1a1a1a"
-    MinHeight="215" MinWidth="350"
+    MinHeight="240" MinWidth="521"
     Width="640" Height="Auto" SizeToContent="Height"
     WindowStartupLocation="CenterScreen" TextOptions.TextFormattingMode="Display" SnapsToDevicePixels="True"
     FontFamily="Segoe UI" FontSize="13" ShowInTaskbar="True">
@@ -175,6 +175,11 @@
                     <LineBreak />
                     Please edit the settings file (SK_LU_settings.json) to set blacklisted and additional dlls.
                 </TextBlock>
+            </Button.ToolTip>
+        </Button>
+        <Button x:Name="DeleteButton" Content="Delete" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top" Margin="0,0,90,10">
+            <Button.ToolTip>
+                <TextBlock>Deletes all selected DLLs.</TextBlock>
             </Button.ToolTip>
         </Button>
 
