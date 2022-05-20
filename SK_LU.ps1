@@ -542,25 +542,25 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 		}
 		
 		if (!$NewestRemote) {
-			$GUI.WPF.Dispatcher.invoke([action] {
+			[void]$GUI.WPF.Dispatcher.InvokeAsync([action] {
 					$GUI.Nodes.Update.Text = 'Update check failed.'
-				})
+				}, Background)
 			$GUI.WPF.Dispatcher.invoke([action] {
 					$GUI.Nodes.Update.Foreground = 'Red'
-				})
+				}, Background)
 			exit 1
 		}
 		$GUI.WPF.Dispatcher.Invoke([action] {
 				$GUI.Nodes.VersionColumn.ElementStyle.Triggers[0].Value = $NewestRemote #Why you no work?
-			})
+			}, Background)
 
 		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
-			$GUI.WPF.Dispatcher.invoke([action] {
+			[void]$GUI.WPF.Dispatcher.InvokeAsync([action] {
 					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
-				})
-			$GUI.WPF.Dispatcher.invoke([action] {
+				}, Background)
+			$GUI.WPF.Dispatcher.Invoke([action] {
 					$GUI.Nodes.Update.Foreground = 'Green'
-				})
+				}, Background)
 		}
 	})
 
@@ -574,5 +574,5 @@ $UpdateHandle = $UpdatePowershell.BeginInvoke()
 
 $UpdatePowershell.EndInvoke($UpdateHandle) | out-Host
 $UpdatePowershell.Dispose()
-$UpdateRunspace.CloseAsync()
+$UpdateRunspace.Close()
 exit 0
