@@ -20,10 +20,10 @@ Special K Powershell Command Library
 function Get-SkPath {
 	<#
 	.SYNOPSIS
-	Returns the a path of a Special K installation (if it includes SpecialK32.dll or SpecialK64.dll). Trhows an error otherwise.
+	Returns the a path of a Special K installation (if it includes SpecialK32.dll or SpecialK64.dll in any form). Throws an error otherwise.
 	Checks the following places in this order: Working Directory, Script Root, default home dir of SK (Documents\My Mods\SpecialK\)
 	.PARAMETER Path
-	Returns the given path if it includes SpecialK32.dll or SpecialK64.dll. Gives an error otherwise.
+	Returns the given path if it includes SpecialK32.dll or SpecialK64.dll in any form. Gives an error otherwise.
 	#>
 	[CmdletBinding()]
 	param(
@@ -57,7 +57,9 @@ function Get-SkPath {
 		return
 	}
 	if ($PSScriptRoot) {
-		if ((Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '.\SpecialK64.dll') -PathType 'Leaf') -or (Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '.\SpecialK32.dll') -PathType 'Leaf')) {
+		if (Get-ChildItem -LiteralPath '.\' -Filter "*.dll" -Depth 0 `
+			| Select-Object -ExpandProperty 'VersionInfo' `
+			| Where-Object -Property 'ProductName' -EQ 'Special K') {
 			Write-Output (Get-Item $PSScriptRoot)
 			return
 		}
