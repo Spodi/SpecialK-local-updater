@@ -203,6 +203,7 @@ function Update-DllList {
 	process {
 		$obj = New-Object PSObject
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $dlls.Name
+		Add-Member -InputObject $obj -MemberType NoteProperty -Name FullName -Value $dlls.FullName
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Directory -Value $dlls.DirectoryName
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name InternalName -Value $dlls.VersionInfo.InternalName
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $dlls.VersionInfo.ProductVersion
@@ -228,18 +229,10 @@ function Register-UpdateTask {
 function Show-MessageBox {
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory = $true)]
-		[string]
-		$Message,
-		[Parameter(Mandatory = $true)]
-		[string]
-		$Title,
-		[Parameter(Mandatory = $false)] [ValidateSet('OK', 'OKCancel', 'RetryCancel', 'YesNo', 'YesNoCancel', 'AbortRetryIgnore')]
-		[string]
-		$Button = 'OK',
-		[Parameter(Mandatory = $false)] [ValidateSet('Asterisk', 'Error', 'Exclamation', 'Hand', 'Information', 'None', 'Question', 'Stop', 'Warning')]
-		[string]
-		$Icon = 'None'
+		[Parameter(Mandatory = $true)]																													[string]	$Message,
+		[Parameter(Mandatory = $true)]																													[string]	$Title,
+		[Parameter(Mandatory = $false)]	[ValidateSet('OK', 'OKCancel', 'RetryCancel', 'YesNo', 'YesNoCancel', 'AbortRetryIgnore')]						[string]	$Button = 'OK',
+		[Parameter(Mandatory = $false)] [ValidateSet('Asterisk', 'Error', 'Exclamation', 'Hand', 'Information', 'None', 'Question', 'Stop', 'Warning')]	[string]	$Icon = 'None'
 	)
 	begin {
 		Add-Type -AssemblyName System.Windows.Forms | Out-Null
@@ -287,21 +280,20 @@ $blacklist = $null
 $whitelist = $null
 $dllcache = $null
 $dlls = $null
-$apps = $null
 
 $SK_DLLPath = Get-SkPath -ErrorAction 'Stop'
 
-[Array]$SKVersions = $null
 $SKVersions = Get-SkDll | ForEach-Object {
-
 	$obj = New-Object PSObject
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Name' -Value $_.Name
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Version' -Value $_.VersionInfo.ProductVersion
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'VersionInternal' -Value $_.VersionInfo.ProductVersionRaw
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Bits' -Value ($_.VersionInfo.InternalName -replace '[^0-9]' , '')
-	$variant = ($_.Name -Replace '^.*?SpecialK[6,3][4,2]-?|\.dll.*$')
-	if (!$variant) {
+	if (($_.Name -eq 'SpecialK64.dll') -or ($_.Name -eq 'SpecialK32.dll')) {	
 		$variant = 'Main'
+	}
+	else {
+		$variant = ($_.Name -Replace '^.*?SpecialK[6,3][4,2]-?|\.dll.*$')
 	}
 	Add-Member -InputObject $obj -MemberType NoteProperty -Name 'Variant' -Value $variant
 	Write-Output $obj
@@ -336,7 +328,7 @@ else {
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
 }
 if ($whitelist) {
-	$dlls += $whitelist | Sort-Object -Unique | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+	$dlls += $whitelist | Sort-Object -Unique | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
 Write-Host 'Done'
 
@@ -357,11 +349,6 @@ if ($NoGUI) {
 $LightTheme = (Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name 'AppsUseLightTheme').AppsUseLightTheme
 
 $GUI = [hashtable]::Synchronized(@{})
-$GUI = @{
-	WPF   = $null
-	NsMgr = $null
-	Nodes = @() 
-}
 
 [string]$XAML = (Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'SK_LU_GUI.xml')) -replace 'mc:Ignorable="d"' -replace '^<Win.*', '<Window'
 
@@ -402,7 +389,7 @@ if ($SKVariants.Count) {
 	$GUI.Nodes.VariantsComboBox.ItemsSource = $SKVariants.Variant
 }
 else {
-	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry.
+	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry and no array.
 }
 $GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
 
@@ -417,7 +404,7 @@ else {
 	$GUI.Nodes.Version.Text = "Error"
 }
 
-$GUI.Nodes.Update.Text = 'Checking SKs Discord branch for updates...'
+
 $GUI.Nodes.VersionColumn.ElementStyle.Triggers[1].Value = $NewestLocal.Version
 
 $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
@@ -431,16 +418,16 @@ $Events = @{}
 
 $Events.ButtonUpdate = {
 	$GUI.Nodes.Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
-		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
 		try {			
 			$usedDll = $SKVersions | Where-Object Bits -Like $_.Bits | Where-Object Variant -EQ $GUI.Nodes.VariantsComboBox.SelectedItem
 			$source = Join-Path -Path $SK_DLLPath -ChildPath $usedDll.Name
-			Write-Host "Copy item `"$($source)`" to destination `"$destination`""
-			Copy-Item -LiteralPath $source -Destination $destination -ErrorAction 'Stop'
+			if (!(Test-Path -PathType 'Leaf' $source) ) { Throw "No matching $($_.Bits)Bit dll for selected variant found." }
+			Write-Host "Copy item `"$($source)`" to destination `"$($_.FullName)`""
+			Copy-Item -LiteralPath $source -Destination $_.FullName -ErrorAction 'Stop'
 			$_.Version = $usedDll.Version
 		}
 		catch {
-			Write-Error "Failed to update `"$destination`"
+			Write-Error "Failed to update `"$($_.FullName)`"
 $_"
 		}
 		$i++
@@ -464,7 +451,7 @@ $Events.ButtonScan = {
 	$dlls = Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 	if ($whitelist) {
-		$dlls += $whitelist | Sort-Object -Unique | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+		$dlls += $whitelist | Sort-Object -Unique | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 	}
 	$instances = $dlls | Update-DllList $blacklist
 	Write-Host 'Done'
@@ -506,11 +493,23 @@ $Events.VariantChange = {
 }
 
 
+$Events.ButtonDelete = {
+	if ((Show-MessageBox -Message 'Are you sure you want to delete selected items?
+This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
+		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $True | ForEach-Object {
+			Remove-Item $_.FullName
+		}
+		$GUI.Nodes.Games.ItemsSource = $GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $false
+	}
+}
+
+
 $GUI.Nodes.UpdateButton.Add_Click($Events.ButtonUpdate)
 $GUI.Nodes.ScanButton.Add_Click($Events.ButtonScan)
 $GUI.Nodes.TaskButton.Add_Click($Events.ButtonTask)
 $GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
 $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
+$GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
 
 $GUI.WPF.Add_Loaded({
 		$GUI.Nodes.Games.ItemsSource = $instances
@@ -531,7 +530,9 @@ $UpdateRunspace.SessionStateProxy.SetVariable('GUI.Nodes.VersionColumn.ElementSt
 $UpdatePowershell = [powershell]::Create()
 $UpdatePowershell.Runspace = $UpdateRunspace
 [void]$UpdatePowershell.AddScript({
-		
+		$GUI.WPF.Dispatcher.Invoke([action] {
+				$GUI.Nodes.Update.Text = 'Checking SKs Discord branch for updates...'
+			})
 		$i = 0
 		while ($i -le 3) {
 			$NewestRemote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
@@ -561,7 +562,7 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 				})
 		}
 		else {
-			$GUI.WPF.Dispatcher.Invoke([action] {
+			$GUI.WPF.Dispatcher.Invoke([action] { 
 					$GUI.Nodes.Update.Text = ""
 				})
 		}
