@@ -191,7 +191,7 @@ function Find-SkDlls {
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
-		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Write-Output
+		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Write-Output
 	}
 }
 function Update-DllList { 
@@ -320,7 +320,7 @@ if (! $Scan) {
 	}
 }	
 if ($dllcache) {
-	$dlls += $dllcache | Get-Item | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	$dlls += $dllcache | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
@@ -385,12 +385,12 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
 }
 
-if ($SKVariants.Count) {
-	$GUI.Nodes.VariantsComboBox.ItemsSource = $SKVariants.Variant
-}
-else {
-	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry and no array.
-}
+#if ($SKVariants.Count) {
+	$GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
+#}
+#else {
+#	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry and no array.
+#}
 $GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
 
 $selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
@@ -433,7 +433,7 @@ $_"
 		$i++
 	}
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = $instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$instances
 }
 
 $Events.ButtonTask = {
@@ -456,7 +456,7 @@ $Events.ButtonScan = {
 	$instances = $dlls | Update-DllList $blacklist
 	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = $instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$instances
 }
 
 
@@ -476,7 +476,7 @@ $Events.SelectAll = {
 		}
 	}
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = $instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$instances
 }
 
 $Events.VariantChange = {
@@ -512,7 +512,7 @@ $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
 
 $GUI.WPF.Add_Loaded({
-		$GUI.Nodes.Games.ItemsSource = $instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$instances
 	})
 
 #$GUI.Nodes.VersionColumn.ElementStyle.Triggers | out-host #
