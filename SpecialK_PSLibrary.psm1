@@ -31,16 +31,28 @@ function Get-SkPath {
 	)
 
 	if ($path) {
-		If ((Test-Path -LiteralPath (Join-Path -Path $Path -ChildPath '\SpecialK64.dll') -PathType 'Leaf') -or (Test-Path -LiteralPath (Join-Path -Path $Path -ChildPath '.\SpecialK32.dll') -PathType 'Leaf')) {
-			Write-Output $path
-			return
+		if (Test-Path -LiteralPath $Path -PathType 'Container') {
+			#$Path -replace '(\?|\*|\[)', '`$1'
+			if (Get-ChildItem -LiteralPath $Path -Filter "*.dll" -Depth 0 `
+				| Select-Object -ExpandProperty 'VersionInfo' `
+				| Where-Object -Property 'ProductName' -EQ 'Special K') {
+				Write-Output (Get-Item $path)
+				return
+			}
+			else {
+				Write-Error -Category 'ObjectNotFound' "The Path `"$Path`" is not a Special K installation. No valid DLL was found."
+				return
+			}
 		}
 		else {
-			Write-Error -Category 'ObjectNotFound' "The Path `"$Path`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+			Write-Error -Category 'ObjectNotFound' "The Path `"$Path`" does not exist."
 			return
 		}
 	}
-	if ((Test-Path -LiteralPath '.\SpecialK64.dll' -PathType 'Leaf') -or (Test-Path -LiteralPath '.\SpecialK32.dll' -PathType 'Leaf')) {
+
+	if (Get-ChildItem -LiteralPath '.\' -Filter "*.dll" -Depth 0 `
+		| Select-Object -ExpandProperty 'VersionInfo' `
+		| Where-Object -Property 'ProductName' -EQ 'Special K') {
 		Write-Output (Get-Item '.')
 		return
 	}
@@ -50,12 +62,65 @@ function Get-SkPath {
 			return
 		}
 	}
-	if ((Test-Path -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '.\My Mods\SpecialK\SpecialK64.dll') -PathType 'Leaf') -or (Test-Path -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '.\My Mods\SpecialK\SpecialK32.dll') -PathType 'Leaf')) {
+	if (Get-ChildItem -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\') -Filter "*.dll" -Depth 0 `
+		| Select-Object -ExpandProperty 'VersionInfo' `
+		| Where-Object -Property 'ProductName' -EQ 'Special K') {
 		Write-Output (Get-Item (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\'))
 		return
 	}
-	Write-Error -Category 'ObjectNotFound' 'No valid Special K installation found.'
+	Write-Error -Category 'ObjectNotFound' 'No valid Special K found. No valid DLL was found.'
 	return
+}
+
+function Get-SkDll {
+	param (
+		[Parameter(ValueFromPipelineByPropertyName)][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
+	)
+
+	begin {
+		try {
+			$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
+		}
+		catch {
+			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
+			return
+		}
+	}
+	process {
+		#[System.IO.Directory]::EnumerateFiles($_, 'SpecialK*.dll', 'TopDirectoryOnly')
+		Get-ChildItem -LiteralPath $InstallPath -Filter "*.dll" -Depth 0 `
+		| Where-Object { $_.VersionInfo.ProductName -EQ 'Special K' } `
+		| Write-Output
+	}
+}
+
+function Test-SkIsGlobal {
+	[CmdletBinding()]
+	param(
+		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'LP', 'LiteralPath')]	[string]	$Path
+	)
+
+	$SK32 = (Join-Path -Path $Path -ChildPath '\SpecialK32.dll')
+	$SK64 = (Join-Path -Path $Path -ChildPath '\SpecialK64.dll')
+
+	if ([Environment]::Is64BitOperatingSystem) {
+		if ((Test-Path -LiteralPath $SK64) -or (Test-Path -LiteralPath $SK32)) {
+			Write-Output $true
+		}
+		else {
+			Write-Information "The Path `"$Path`" is not valid for a global Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+			Write-Output $false
+		}
+	}
+	else {
+		if ((Test-Path -LiteralPath $SK32)) {
+			Write-Output $true
+		}
+		else {
+			Write-Information "The Path `"$Path`" is not valid for a global Special K installation. No SpecialK32.dll was found."
+			Write-Output $false
+		}
+	}
 }
 
 function Get-SkTeardownStatus {
@@ -143,14 +208,12 @@ function Get-SkServiceProcess {
 	)
 
 	begin {
-		try {
-			$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-		}
-		catch {
-			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+		$InstallPath = Get-SkPath $SkInstallPath
+
+		if (!(Test-SkIsGlobal -Path $InstallPath)) {
+			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
 			break
 		}
-
 	}
 
 	process {
@@ -247,11 +310,11 @@ Function Start-SkService {
 	param (
 		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
-	try {
-		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-	}
-	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+
+	$InstallPath = Get-SkPath $SkInstallPath
+
+	if (!(Test-SkIsGlobal -Path $InstallPath)) {
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
 		return
 	}
 
@@ -292,7 +355,7 @@ Function Start-SkService {
 		}
 	}
 
- if ([Environment]::Is64BitOperatingSystem) {
+	if ([Environment]::Is64BitOperatingSystem) {
 		if (Test-Path -LiteralPath $SK64) {
 			If (Test-Path -LiteralPath "$ServletPath\SKIFsvc64.exe" -PathType 'Leaf') {
 				Write-Information 'Starting 64Bit service (SKIF Standalone)...'
@@ -329,6 +392,7 @@ Function Start-SkService {
 	Start-Sleep -Milliseconds '150' #This is to prevent race conditions
 }
 
+
 Function Stop-SkService {
 	<#
 	.SYNOPSIS
@@ -337,11 +401,11 @@ Function Stop-SkService {
 	param (
 		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
-	try {
-		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-	}
-	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+
+	$InstallPath = Get-SkPath $SkInstallPath
+
+	if (!(Test-SkIsGlobal -Path $InstallPath)) {
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
 		return
 	}
 
@@ -406,11 +470,10 @@ function Get-SkList {
 		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
 
-	try {
-		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-	}
-	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+	$InstallPath = Get-SkPath $SkInstallPath
+
+	if (!(Test-SkIsGlobal -Path $InstallPath)) {
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
 		return
 	}
 
@@ -455,11 +518,10 @@ function Add-SkList {
 	)
 
 	begin {
-		try {
-			$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-		}
-		catch {
-			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+		$InstallPath = Get-SkPath $SkInstallPath
+
+		if (!(Test-SkIsGlobal -Path $InstallPath)) {
+			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation."
 			break
 		}
 	}
@@ -524,14 +586,15 @@ function Remove-SkList {
 		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
 
-	Process {
-		try {
-			$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-		}
-		catch {
-			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+	begin {
+		$InstallPath = Get-SkPath $SkInstallPath
+
+		if (!(Test-SkIsGlobal -Path $InstallPath)) {
+			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
 			break
 		}
+	}
+	Process {
 		if (($Type -eq 'white') -or (($Type -eq 'allow'))) {
 			$Path = (Join-Path -Path $InstallPath -ChildPath '\Global\whitelist.ini')
 		}
@@ -555,11 +618,12 @@ function Get-SkVersion {
 	param (
 		[Parameter(ValueFromPipelineByPropertyName)][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
+	Write-Warning 'This function is deprecated, please use "Get-SkDll" instead and refer to "$_.VersionInfo".'
 	try {
 		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
 	}
 	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+		Write-Error -Category 'ObjectNotFound' "The Path `"$Path`" is no valid Special K installation. No valid DLL was found."
 		return
 	}
 
@@ -579,7 +643,7 @@ function Set-SkToAVX {
 		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
 	}
 	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
 		return
 	}
 
@@ -615,7 +679,7 @@ function Set-SkToSSE {
 		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
 	}
 	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No SpecialK32.dll or SpecialK64.dll was found."
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
 		return
 	}
 
