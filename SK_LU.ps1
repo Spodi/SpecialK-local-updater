@@ -31,7 +31,6 @@ Function ConvertFrom-VDF {
  .NOTES
      Stol... er, borrowed from:
      https://github.com/ChiefIntegrator/Steam-GetOnTop/blob/master/Modules/SteamTools/SteamTools.psm1
- 
  #>
 	param
 	(
@@ -131,7 +130,9 @@ function Get-GameFolders {
 					if (Test-Path $_) {
 						ForEach ($file in (Get-ChildItem "$_\SteamApps\*.acf") ) {
 							$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
-							Write-output ($acf.AppState.InstallDir -replace ('^', "$_\SteamApps\common\")) #don't care about things in other folders, like \SteamApps\music. Non existing paths are filtered out later.
+							if ($acf.AppState.name) {
+								Write-output ($acf.AppState.InstallDir -replace ('^', "$_\SteamApps\common\")) #don't care about things in other folders, like \SteamApps\music. Non existing paths are filtered out later.
+							}
 						}
 					}
 				}
@@ -332,7 +333,7 @@ if ($whitelist) {
 }
 Write-Host 'Done'
 
-$instances = $dlls | Update-DllList $blacklist
+$instances = $dlls | Update-DllList $blacklist | Sort-Object 'FullName'
 
 if ($NoGUI) {
 	$instances | ForEach-Object {
@@ -385,12 +386,7 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 	$GUI.WPF.Icon = "$PSScriptRoot\SKIF.ico"
 }
 
-#if ($SKVariants.Count) {
-	$GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
-#}
-#else {
-#	$GUI.Nodes.VariantsComboBox.ItemsSource = , $SKVariants.Variant	#For some reason WPF splits the name by char if it's only a single entry and no array.
-#}
+$GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
 $GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
 
 $selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
@@ -448,12 +444,13 @@ $Events.ButtonTask = {
 }
 
 $Events.ButtonScan = {
+	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
 	$dlls = Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 	if ($whitelist) {
 		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 	}
-	$instances = $dlls | Update-DllList $blacklist
+	$instances = $dlls | Update-DllList $blacklist | Sort-Object 'FullName'
 	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
 	$GUI.Nodes.Games.ItemsSource = [Array]$instances
@@ -512,7 +509,7 @@ $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
 
 $GUI.WPF.Add_Loaded({
-	$GUI.Nodes.Games.ItemsSource = [Array]$instances
+		$GUI.Nodes.Games.ItemsSource = [Array]$instances
 	})
 
 #$GUI.Nodes.VersionColumn.ElementStyle.Triggers | out-host #
