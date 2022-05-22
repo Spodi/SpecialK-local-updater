@@ -303,8 +303,8 @@ $NewestLocal = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
 
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
-	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist
-	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs
+	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist | Sort-Object -Unique
+	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs | Sort-Object -Unique
 }
 else {
 	New-Item $PSScriptRoot\SK_LU_settings.json
@@ -316,7 +316,7 @@ else {
 if (! $Scan) {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
 		Write-Host -NoNewline 'Loading cached locations...'
-		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
+		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json) | Sort-Object -Unique
 	}
 }	
 if ($dllcache) {
@@ -328,7 +328,7 @@ else {
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
 }
 if ($whitelist) {
-	$dlls += $whitelist | Sort-Object -Unique | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+	$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
 Write-Host 'Done'
 
@@ -451,7 +451,7 @@ $Events.ButtonScan = {
 	$dlls = Get-GameFolders | Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
 	if ($whitelist) {
-		$dlls += $whitelist | Sort-Object -Unique | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 	}
 	$instances = $dlls | Update-DllList $blacklist
 	Write-Host 'Done'
