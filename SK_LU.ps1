@@ -306,12 +306,14 @@ $SKVariants = ($SKVersions | Select-Object Variant -Unique)
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
 	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist | Sort-Object -Unique
 	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs | Sort-Object -Unique
+	$AdditionalScanPaths = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalScanPaths | Sort-Object -Unique
 }
 else {
-	New-Item $PSScriptRoot\SK_LU_settings.json
-	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @() } | ConvertTo-Json)
+	[void](New-Item $PSScriptRoot\SK_LU_settings.json)
+	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @(); 'AdditionalScanPaths' = @() } | ConvertTo-Json)
 	$blacklist = $null
 	$whitelist = $null
+	$AdditionalScanPaths = $null
 }
 
 if (! $Scan) {
@@ -321,19 +323,20 @@ if (! $Scan) {
 	}
 }	
 if ($dllcache) {
-	$dlls += $dllcache | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	$dlls = $dllcache | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
-	$dlls += Get-GameFolders | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))
+	$dlls = Get-GameFolders
+	$dlls += $AdditionalScanPaths
+	$dlls = $dlls | Sort-Object -Unique | Find-SkDlls
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | Sort-Object | ConvertTo-Json))
 }
 if ($whitelist) {
 	$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
+$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList $blacklist
 Write-Host 'Done'
-
-$instances = $dlls | Update-DllList $blacklist | Sort-Object 'FullName'
 
 if ($NoGUI) {
 	$instances | ForEach-Object {
@@ -445,12 +448,14 @@ $Events.ButtonTask = {
 
 $Events.ButtonScan = {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
-	$dlls = Get-GameFolders | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | ConvertTo-Json))	
+	$dlls = Get-GameFolders
+	$dlls += $AdditionalScanPaths
+	$dlls = $dlls | Sort-Object -Unique | Find-SkDlls
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | Sort-Object | ConvertTo-Json))	
 	if ($whitelist) {
-		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
-	$instances = $dlls | Update-DllList $blacklist | Sort-Object 'FullName'
+	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList $blacklist 
 	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
 	$GUI.Nodes.Games.ItemsSource = [Array]$instances
