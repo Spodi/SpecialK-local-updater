@@ -10,6 +10,13 @@
 	.Notes
 	Created by Spodi and Wall_SoGB
  #>
+
+[CmdletBinding()]
+param (
+	[Parameter()][switch]$NoGUI,
+	[Parameter()][switch]$Scan
+)
+	
 #region <FUNCTIONS>
 Function ConvertFrom-VDF {
 	<# 
@@ -318,7 +325,7 @@ else {
 
 if (! $Scan) {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
-		Write-Host -NoNewline 'Loading cached locations...'
+		Write-Host -NoNewline 'Loading cached locations... '
 		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json) | Sort-Object -Unique
 	}
 }	
