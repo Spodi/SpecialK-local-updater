@@ -230,10 +230,17 @@ function Update-DllList {
 function Register-UpdateTask {
 	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui"
 	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
-	$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME
+	$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME"
 	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RunOnlyIfNetworkAvailable
 	$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
-	Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User $env:USERNAME
+	try{
+		Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User "$env:USERDOMAIN\$env:USERNAME"
+	}
+	catch{
+		Write-Error -Message $_.Exception.Message
+		return
+	}
+	Write-Host "Task created succesfully"
 }
 function Show-MessageBox {
 	[CmdletBinding()]
@@ -445,7 +452,14 @@ $_"
 
 $Events.ButtonTask = {
 	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
-		Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
+		try{
+			Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
+		}
+		catch{
+			Write-Error ($_.Exception.Message)
+			return
+		}
+		Write-Host "Task removed succesfully"
 		$GUI.Nodes.TaskButton.Content = 'Enable automatic update'
 	}
 	else {
