@@ -27,13 +27,19 @@ function Get-SkPath {
 	#>
 	[CmdletBinding()]
 	param(
-		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'LP', 'LiteralPath')]	[string[]]	$Path
+		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'LP', 'LiteralPath')]	[string[]]	$Path,
+		[Parameter()]																												[switch]	$old
 	)
-
+	if ($old) {
+		$filter = '*.old'
+	}
+	else {
+		$filter = '*.dll'
+	}
 	if ($path) {
 		if (Test-Path -LiteralPath $Path -PathType 'Container') {
 			#$Path -replace '(\?|\*|\[)', '`$1'
-			if (Get-ChildItem -LiteralPath $Path -Filter "*.dll" -Depth 0 `
+			if (Get-ChildItem -LiteralPath $Path -Filter $filter -Depth 0 `
 				| Select-Object -ExpandProperty 'VersionInfo' `
 				| Where-Object -Property 'ProductName' -EQ 'Special K') {
 				Write-Output (Get-Item $path)
@@ -50,21 +56,21 @@ function Get-SkPath {
 		}
 	}
 
-	if (Get-ChildItem -LiteralPath '.\' -Filter "*.dll" -Depth 0 `
+	if (Get-ChildItem -LiteralPath '.\' -Filter $filter -Depth 0 `
 		| Select-Object -ExpandProperty 'VersionInfo' `
 		| Where-Object -Property 'ProductName' -EQ 'Special K') {
 		Write-Output (Get-Item '.')
 		return
 	}
 	if ($PSScriptRoot) {
-		if (Get-ChildItem -LiteralPath '.\' -Filter "*.dll" -Depth 0 `
+		if (Get-ChildItem -LiteralPath '.\' -Filter $filter -Depth 0 `
 			| Select-Object -ExpandProperty 'VersionInfo' `
 			| Where-Object -Property 'ProductName' -EQ 'Special K') {
 			Write-Output (Get-Item $PSScriptRoot)
 			return
 		}
 	}
-	if (Get-ChildItem -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\') -Filter "*.dll" -Depth 0 `
+	if (Get-ChildItem -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\') -Filter $filter -Depth 0 `
 		| Select-Object -ExpandProperty 'VersionInfo' `
 		| Where-Object -Property 'ProductName' -EQ 'Special K') {
 		Write-Output (Get-Item (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\'))
@@ -85,7 +91,7 @@ function Get-SkDll {
 		}
 		catch {
 			Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
-			return
+			break
 		}
 	}
 	process {
@@ -637,74 +643,3 @@ function Get-SkVersion {
 	| Write-Output
 }
 
-function Set-SkToAVX {
-	param (
-		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
-	)
-	try {
-		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-	}
-	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
-		return
-	}
-
-	$SK32AVX = Join-Path $InstallPath '\SpecialK32-AVX2.dll'
-	$SK64AVX = Join-Path $InstallPath '\SpecialK64-AVX2.dll'
-	$SK32 = Join-Path $InstallPath '\SpecialK32.dll'
-	$SK64 = Join-Path $InstallPath '\SpecialK64.dll'
-	$SK32SSE = Join-Path $InstallPath '\SpecialK32-SSE.dll'
-	$SK64SSE = Join-Path $InstallPath '\SpecialK64-SSE.dll'
-	
-	If ((Test-Path -LiteralPath $SK32 -PathType 'Leaf') -and (Test-Path -LiteralPath $SK32AVX -PathType 'Leaf')) {
-		if (Test-Path -LiteralPath $SK32SSE -PathType 'Leaf') {
-			Remove-Item -LiteralPath $SK32SSE
-		}
-		Rename-Item -LiteralPath $SK32 (Split-Path $SK32SSE -Leaf)
-		Rename-Item -LiteralPath $SK32AVX (Split-Path $SK32 -Leaf)
-	}
-
-	If ((Test-Path -LiteralPath $SK64 -PathType 'Leaf') -and (Test-Path -LiteralPath $SK64AVX -PathType 'Leaf')) {
-		if (Test-Path -LiteralPath $SK64SSE -PathType 'Leaf') {
-			Remove-Item -LiteralPath $SK64SSE
-		}
-		Rename-Item -LiteralPath $SK64 (Split-Path $SK64SSE -Leaf)
-		Rename-Item -LiteralPath $SK64AVX (Split-Path $SK64 -Leaf)
-	}
-}
-
-function Set-SkToSSE {
-	param (
-		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
-	)
-	try {
-		$InstallPath = Get-SkPath $SkInstallPath -ErrorAction 'Stop'
-	}
-	catch {
-		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
-		return
-	}
-
-	$SK32AVX = Join-Path $InstallPath '\SpecialK32-AVX2.dll'
-	$SK64AVX = Join-Path $InstallPath '\SpecialK64-AVX2.dll'
-	$SK32 = Join-Path $InstallPath '\SpecialK32.dll'
-	$SK64 = Join-Path $InstallPath '\SpecialK64.dll'
-	$SK32SSE = Join-Path $InstallPath '\SpecialK32-SSE.dll'
-	$SK64SSE = Join-Path $InstallPath '\SpecialK64-SSE.dll'
-
-	If ((Test-Path -LiteralPath $SK32 -PathType 'Leaf') -and (Test-Path -LiteralPath $SK32SSE -PathType 'Leaf')) {
-		if (Test-Path -LiteralPath $SK32AVX -PathType 'Leaf') {
-			Remove-Item -LiteralPath $SK32AVX
-		}
-		Rename-Item -LiteralPath $SK32 (Split-Path $SK32AVX -Leaf)
-		Rename-Item -LiteralPath $SK32SSE (Split-Path $SK32 -Leaf)
-	}
-	
-	If ((Test-Path -LiteralPath $SK64 -PathType 'Leaf') -and (Test-Path -LiteralPath $SK64SSE -PathType 'Leaf')) {
-		if (Test-Path -LiteralPath $SK64AVX -PathType 'Leaf') {
-			Remove-Item -LiteralPath $SK64AVX
-		}
-		Rename-Item -LiteralPath $SK64 (Split-Path $SK64AVX -Leaf)
-		Rename-Item -LiteralPath $SK64SSE (Split-Path $SK64 -Leaf)
-	}
-}
