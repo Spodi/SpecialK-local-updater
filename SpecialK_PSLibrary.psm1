@@ -643,3 +643,49 @@ function Get-SkVersion {
 	| Write-Output
 }
 
+function Rename-SkToOld {
+	param (
+		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
+	)
+	$InstallPath = Get-SkPath $SkInstallPath
+
+	if (!(Test-SkIsGlobal -Path $InstallPath)) {
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid global Special K installation"
+		return
+	}
+
+	$SK32 = Join-Path $InstallPath '\SpecialK32.dll'
+	$SK64 = Join-Path $InstallPath '\SpecialK64.dll'
+	$SK32o = Join-Path $InstallPath '\SpecialK32.old'
+	$SK64o = Join-Path $InstallPath '\SpecialK64.old'
+	
+	If ((Test-Path -LiteralPath $SK32 -PathType 'Leaf')) {
+		Rename-Item -LiteralPath $SK32 (Split-Path $SK32o -Leaf)
+	}
+	If ((Test-Path -LiteralPath $SK64 -PathType 'Leaf')) {
+		Rename-Item -LiteralPath $SK64 (Split-Path $SK64o -Leaf)
+	}
+}
+
+function Remove-SkOld {
+	param (
+		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
+	)
+	try {
+		$InstallPath = Get-SkPath $SkInstallPath -Old -ErrorAction 'Stop'
+	}
+	catch {
+		Write-Error -Category 'ObjectNotFound' "The Path `"$SkInstallPath`" is no valid Special K installation. No valid DLL was found."
+		return
+	}
+
+	$SK32o = Join-Path $InstallPath '\SpecialK32.old'
+	$SK64o = Join-Path $InstallPath '\SpecialK64.old'
+	
+	If ((Test-Path -LiteralPath $SK32o -PathType 'Leaf')) {
+		Remove-Item -LiteralPath $SK32o
+	}
+	If ((Test-Path -LiteralPath $SK64o -PathType 'Leaf')) {
+		Remove-Item -LiteralPath $SK64o
+	}
+}
