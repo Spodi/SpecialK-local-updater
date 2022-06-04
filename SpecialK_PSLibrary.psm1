@@ -140,13 +140,13 @@ function Get-SkTeardownStatus {
 	try {
 		$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown32")
 		$SK_Event.close()
-		Write-Output -InputObject [string]'32'
+		Write-Output '32'
 	}
 	catch { }
 	try {
 		$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown64")
 		$SK_Event.close()
-		Write-Output -InputObject [string]'64'
+		Write-Output '64'
 	}
 	catch { }
 }
@@ -562,7 +562,12 @@ function Add-SkList {
 		$CompareResult = Get-Content -Encoding 'utf8' -LiteralPath $Path | Where-Object { $_ -match $CompareReg }
 		if (! $CompareResult) {
 			Write-Information "Adding $Value"
-			Add-Content -Encoding 'utf8' -LiteralPath $Path -Value "`r`n$Value" -NoNewline
+			if ($null -eq @(Get-Content -Encoding 'utf8' -LiteralPath $Path)[-1]) {
+				Add-Content -Encoding 'utf8' -LiteralPath $Path -Value "$Value" -NoNewline
+			}
+			else {
+				Add-Content -Encoding 'utf8' -LiteralPath $Path -Value "`r`n$Value" -NoNewline
+			}
 			$Success = $true
 		}
 	}
@@ -615,7 +620,12 @@ function Remove-SkList {
 		}
 
 		$Content = Get-Content -Encoding 'utf8' -LiteralPath $Path | Where-Object { ($_ -ne $Value) -and ($_ -ne '') }
-		$Content = $Content -join "`r`n"	#add nweline after eacht object, but get rid of the newline at the end of file
+		if ($null -ne $Content) {
+			$Content = $Content -join "`r`n"	#add nweline after each object, but get rid of the newline at the end of file
+		}
+		else {
+			$Content = @()
+		}
 		Write-Information "Removing $Value"
 		#Set-Content -Encoding 'utf8' -LiteralPath $Path -Value $Content -NoNewline
 		[System.IO.File]::WriteAllLines($Path, $Content)	#Workaround for powsh 5.1, so no BOM is written
