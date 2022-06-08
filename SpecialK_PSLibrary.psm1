@@ -196,6 +196,115 @@ function Get-SkTeardown {
 	}
 }
 
+function Get-SkInjectedProcess {
+	[CmdletBinding()]
+	param(
+		[Parameter(ValueFromPipeline, Position = 0, Mandatory)][ValidateSet('32', '64')]	[string]	$Bitness,
+		[Parameter()]																		[switch]	$fast	
+	)
+
+	process {
+		if ($fast) {
+			if ($Bitness -eq 32) {
+				if ([Environment]::Is64BitOperatingSystem) {
+					if ([Environment]::Is64BitProcess) {
+						#64-Bit OS and 64-bit Powershell
+						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') {
+							get-process 'SKIFsvc32', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
+							exit
+						} | ForEach-Object {
+							if ($_) {
+								Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+								$_
+							}
+						}
+						return
+					}
+				}
+				#32-Bit OS and 32-bit Powershell or 64-Bit OS but 32-bit Powershell
+				get-process 'SKIFsvc32', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
+					if ($_) {
+						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+						$_
+					}
+				}
+			}
+	
+
+			if ($Bitness -eq 64) {
+				if (-not [Environment]::Is64BitOperatingSystem) {
+					Write-Error "This Operating System isn't capable of 64-Bit"
+					return
+				}
+				if ([Environment]::Is64BitProcess) {
+					get-process 'SKIFsvc64', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
+						if ($_) {
+							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+							$_
+						}
+					}
+				}
+				else {
+					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" {
+						get-process 'SKIFsvc64', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
+						exit
+					} | ForEach-Object {
+						if ($_) {
+							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+							$_
+						}
+					}
+				}
+			}
+		}
+		else {
+			if ($Bitness -eq 32) {
+				if ([Environment]::Is64BitOperatingSystem) {
+					if ([Environment]::Is64BitProcess) {
+						#64-Bit OS and 64-bit Powershell
+						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') {
+							get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
+							exit
+						} | ForEach-Object {
+							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+							$_
+						}
+						return
+					}
+				}
+				#32-Bit OS and 32-bit Powershell or 64-Bit OS but 32-bit Powershell
+				get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
+					Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+					$_
+				}
+			}
+	
+
+			if ($Bitness -eq 64) {
+				if (-not [Environment]::Is64BitOperatingSystem) {
+					Write-Error "This Operating System isn't capable of 64-Bit"
+					return
+				}
+				if ([Environment]::Is64BitProcess) {
+					get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
+						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+						$_
+					}
+				}
+				else {
+					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" {
+						get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
+						exit
+					} | ForEach-Object {
+						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
+						$_
+					}
+				}
+			}
+		}
+	}
+}
+
 function Get-SkServiceProcess {
 	<#
 	.SYNOPSIS
@@ -210,7 +319,7 @@ function Get-SkServiceProcess {
 	#>
 	[CmdletBinding()]
 	param(
-		[Parameter(ValueFromPipeline, Position = 0, Mandatory)][ValidateSet('32', '64')]			[string]	$Bitness,
+		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName, Position = 0, Mandatory)][ValidateSet('32', '64')]			[string]	$Bitness,
 		[Parameter()]																				[int]		$Timeout,
 		[Parameter(ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'Path')]	[string]	$SkInstallPath
 	)
@@ -234,7 +343,7 @@ function Get-SkServiceProcess {
 				Try {
 					$ID = Get-Content -LiteralPath $Path -ErrorAction 'Stop'
 					$Process = Get-Process -ID $ID -ErrorAction 'Stop'
-					Write-Output $Process
+					if ($Process) { Write-Output $Process }
 					break
 				}
 				Catch {
@@ -250,7 +359,8 @@ function Get-SkServiceProcess {
 					$Process = Get-Process -ID $ID -ErrorAction 'Stop'
 				}
 				catch [Microsoft.PowerShell.Commands.ProcessCommandException] {}
-				Write-Output $Process
+				if ($Process) { Write-Output $Process }
+				
 			}
 		}
 			
@@ -349,7 +459,7 @@ Function Start-SkService {
 				return
 			}
 		}
-		$SK_Event32 = Get-SkServiceProcess -Bitness '32' -Timeout '10000'
+		$SK_Event32 = Get-SkServiceProcess -Path $SkInstallPath -Bitness '32' -Timeout '10000'
 		if (! $SK_Event32) {
 			if (Get-SkTeardownStatus -contains '32' ) {
 				Write-Error 'Failed to start 32-bit Service (Timeout), but another instance might be running or SK is still stuck somewhere.'
@@ -383,7 +493,7 @@ Function Start-SkService {
 					return
 				}
 			}
-			$SK_Event64 = Get-SkServiceProcess -Bitness '64' -Timeout '10000'
+			$SK_Event64 = Get-SkServiceProcess -Path $SkInstallPath -Bitness '64' -Timeout '10000'
 			if (! $SK_Event64) {
 				if (Get-SkTeardownStatus -contains '64' ) {
 					Write-Error 'Failed to start 64bit Service (Timeout), but another instance might be running or SK is still stuck somewhere.'
@@ -563,10 +673,10 @@ function Add-SkList {
 		if (! $CompareResult) {
 			Write-Information "Adding $Value"
 			if ($null -eq @(Get-Content -Encoding 'utf8' -LiteralPath $Path)[-1]) {
-				Add-Content -Encoding 'utf8' -LiteralPath $Path -Value "$Value" -NoNewline
+				[System.IO.File]::AppendAllText($Path, $Value)
 			}
 			else {
-				Add-Content -Encoding 'utf8' -LiteralPath $Path -Value "`r`n$Value" -NoNewline
+				[System.IO.File]::AppendAllText($Path, "`r`n$Value")
 			}
 			$Success = $true
 		}
