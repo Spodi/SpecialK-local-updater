@@ -70,6 +70,23 @@ function Get-SkPath {
 			return
 		}
 	}
+	$SKReg = 'Registry::HKEY_CURRENT_USER\SOFTWARE\Kaldaien\Special K'
+	if (Test-Path $SKReg) {
+		try {
+			$RegPath = (Get-ItemProperty -Path $SKReg -ErrorAction 'Stop').Path
+		}
+		catch {}
+		if ($RegPath) {
+			if (Test-Path -LiteralPath $RegPath -PathType 'Container') { 
+				if (Get-ChildItem -LiteralPath $RegPath -Filter $filter -Depth 0 `
+					| Select-Object -ExpandProperty 'VersionInfo' `
+					| Where-Object -Property 'ProductName' -EQ 'Special K') {
+					Write-Output (Get-Item $RegPath)
+					return
+				}
+			}
+		}
+	}
 	if (Get-ChildItem -LiteralPath (Join-Path -Path ([Environment]::GetFolderPath('MyDocuments')) -ChildPath '\My Mods\SpecialK\') -Filter $filter -Depth 0 `
 		| Select-Object -ExpandProperty 'VersionInfo' `
 		| Where-Object -Property 'ProductName' -EQ 'Special K') {
