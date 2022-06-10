@@ -226,7 +226,7 @@ function Get-SkInjectedProcess {
 				if ([Environment]::Is64BitOperatingSystem) {
 					if ([Environment]::Is64BitProcess) {
 						#64-Bit OS and 64-bit Powershell
-						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') {
+						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') -NoProfile {
 							get-process 'SKIFsvc32', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 							exit
 						} | ForEach-Object {
@@ -262,7 +262,7 @@ function Get-SkInjectedProcess {
 					}
 				}
 				else {
-					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" {
+					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile {
 						get-process 'SKIFsvc64', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 						exit
 					} | ForEach-Object {
@@ -279,7 +279,7 @@ function Get-SkInjectedProcess {
 				if ([Environment]::Is64BitOperatingSystem) {
 					if ([Environment]::Is64BitProcess) {
 						#64-Bit OS and 64-bit Powershell
-						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') {
+						. (Join-Path ([Environment]::GetFolderPath('SystemX86')) 'WindowsPowerShell\v1.0\powershell.exe') -NoProfile {
 							get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 							exit
 						} | ForEach-Object {
@@ -309,7 +309,7 @@ function Get-SkInjectedProcess {
 					}
 				}
 				else {
-					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" {
+					. "$env:windir\SysNative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile {
 						get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 						exit
 					} | ForEach-Object {
