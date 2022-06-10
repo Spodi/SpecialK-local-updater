@@ -1,6 +1,6 @@
 <#
 .NOTES
-Special K Powershell Command Library v22.06.03
+Special K Powershell Command Library v22.06.10
     Copyright (C) 2022  Spodi
 
     This program is free software: you can redistribute it and/or modify
