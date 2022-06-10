@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v22.6.3
+	v22.6.10
  #>
 
 [CmdletBinding()]
@@ -99,18 +99,7 @@ function Get-GameFolders {
 	$EGSRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
 	$XBOXRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
 
-	Invoke-Command {
-		If ($DisabledPlattforms -notcontains 'SKIF') {
-			#Get custom SKIF games
-			if (Test-Path $SKIFRegistry) {
-				Write-Verbose 'SKIF install found!'
-
-	(Get-Item -Path $SKIFRegistry).GetSubKeyNames() | ForEach-Object {
-					$SKIFCustom = Get-ItemProperty -Path "$SKIFRegistry\$_"
-					Write-output $SKIFCustom.InstallDir
-				}
-			}
-		}
+	Invoke-Command {	
 		If ($DisabledPlattforms -notcontains 'Steam') {
 			#get Steam games
 			if (Test-Path $SteamRegistry) {
@@ -139,7 +128,11 @@ function Get-GameFolders {
 						ForEach ($file in (Get-ChildItem "$_\SteamApps\*.acf") ) {
 							$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
 							if ($acf.AppState.name) {
-								Write-output ($acf.AppState.InstallDir -replace ('^', "$_\SteamApps\common\")) #don't care about things in other folders, like \SteamApps\music. Non existing paths are filtered out later.
+								Write-output ([PSCustomObject]@{
+										PlatformName = 'Steam'
+										id           = $acf.AppState.appid
+										path         = (Join-Path (Join-Path $_ '\SteamApps\common\') $acf.AppState.installdir) #don't care about things in other folders, like \SteamApps\music. Non existing paths are filtered out later.
+									})
 							}
 						}
 					}
@@ -153,7 +146,11 @@ function Get-GameFolders {
 
 		(Get-Item -Path $GOGRegistry).GetSubKeyNames() | ForEach-Object {
 					$GOG = Get-ItemProperty -Path "$GOGRegistry\$_"
-					Write-output $GOG.Path
+					Write-output ([PSCustomObject]@{
+							PlatformName = 'GOG'
+							id           = $GOG.gameID
+							path         = $GOG.InstallDir
+						})
 				}
 			}
 		}
@@ -166,8 +163,12 @@ function Get-GameFolders {
 				if (Test-Path "$EGSlibrary\Manifests") {
 					Get-ChildItem -File "$EGSlibrary\Manifests" | ForEach-Object {
 						$file = $_.FullName
-						$acf = (Get-Content -Path $file -Encoding UTF8) | ConvertFrom-Json
-						Write-output $acf.InstallLocation
+						$EGS = (Get-Content -Path $file -Encoding UTF8) | ConvertFrom-Json
+						Write-output ([PSCustomObject]@{
+								PlatformName = 'EGS'
+								id           = $EGS.InstallationGuid
+								path         = $EGS.InstallLocation
+							})
 					}
 				}
 			}
@@ -184,31 +185,54 @@ function Get-GameFolders {
 				# Gets install folders
 		($xboxDrives | Sort-Object -Unique) | ForEach-Object {
 					if (Test-Path $_) {
-						Write-output ($_ + ((Get-Content "$_\.GamingRoot").Substring(5)).replace("`0", '')) # String needs to be cleaned out of null characters.
+						Write-output ([PSCustomObject]@{
+								PlatformName = 'XBOX'
+								id           = $null #
+								path         = ($_ + ((Get-Content "$_\.GamingRoot").Substring(5)).replace("`0", '')) # String needs to be cleaned out of null characters.
+							})
 					}
 				}
 			}
 		}
-	} | Sort-Object -Unique | Where-Object { (Test-Path -LiteralPath $_ -PathType 'Container') } | Write-Output #remove duplicate and invalid entries and sort them nicely
+		If ($DisabledPlattforms -notcontains 'SKIF') {
+			#Get custom SKIF games
+			if (Test-Path $SKIFRegistry) {
+				Write-Verbose 'SKIF install found!'
+
+				(Get-Item -Path $SKIFRegistry).GetSubKeyNames() | ForEach-Object {
+					$SKIFCustom = Get-ItemProperty -Path "$SKIFRegistry\$_"
+					Write-output ([PSCustomObject]@{
+							PlatformName = 'SKIF'
+							id           = $SKIFCustom.ID
+							path         = $SKIFCustom.InstallDir
+						})
+				}
+			}
+		}
+	}  | Group-Object 'path' | ForEach-object { ([PSCustomObject]@{Path = $_.Name; Platforms = ($_.Group | Select-object * -ExcludeProperty 'path') } | Add-Member -MemberType ScriptMethod -Name 'ToString' -Value { $this.path.ToString() } -PassThru -Force) } | Where-Object { (Test-Path -LiteralPath $_.Path -PathType 'Container') } | Sort-Object 'path' | Write-Output #remove duplicate and invalid entries and sort them nicely
 }
 function Find-SkDlls {
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory, ValueFromPipeline)][String]$Path
+		[Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)][String]$Path,
+		[Parameter(ValueFromPipelineByPropertyName)]$Platforms
 	)
 	begin {
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
-		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Write-Output
+		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru Platforms $Platforms | Write-Output
 	}
 }
 function Update-DllList { 
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory, ValueFromPipeline)]$dlls,
-		[Parameter(Position = 0)]$blacklist
+		[Parameter(Mandatory, ValueFromPipeline)]$dlls
 	)
+	begin {
+		$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist | Sort-Object -Unique
+		$fixedVersions = (Get-Content $PSScriptRoot\SK_LU_fixedVersions.json | ConvertFrom-Json) | Select-Object PlatformName, id
+	}
 	process {
 		$obj = New-Object PSObject
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $dlls.Name
@@ -218,6 +242,9 @@ function Update-DllList {
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $dlls.VersionInfo.ProductVersion
 		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($dlls.VersionInfo.InternalName -replace '[^0-9]' , '')
 		if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
+		}
+		elseif (($dlls.Platforms | foreach-object { $_ -in [string[]]$fixedVersions }) -contains $true) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 		}
 		else {
@@ -233,10 +260,10 @@ function Register-UpdateTask {
 	$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME"
 	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RunOnlyIfNetworkAvailable
 	$task = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
-	try{
+	try {
 		Register-ScheduledTask -TaskName 'Special K Local Updater Task' -InputObject $task -User "$env:USERDOMAIN\$env:USERNAME"
 	}
-	catch{
+	catch {
 		Write-Error -Message $_.Exception.Message
 		return
 	}
@@ -287,12 +314,20 @@ function New-XMLNamespaceManager {
 
 	return , $NsMgr # unary comma wraps $NsMgr so it isn't unrolled
 }
+
+function ScanAndCache {
+	param($AdditionalScanPath)
+	$dlls = Get-GameFolders
+	$dlls += $AdditionalScanPaths
+	$dlls = $dlls | Group-Object path | foreach-object { $_.Group[0] } | Find-SkDlls
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, Platforms | ConvertTo-Json))
+	Write-Output $dlls
+}
 #endregion </FUNCTIONS>
 
 
 Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -force
 
-$blacklist = $null
 $whitelist = $null
 $dllcache = $null
 $dlls = $null
@@ -319,14 +354,12 @@ $NewestLocal = ($SKVersions | Sort-Object VersionInternal -Descending)[0]
 $SKVariants = ($SKVersions | Select-Object Variant -Unique)
 
 if (Test-Path $PSScriptRoot\SK_LU_settings.json) {
-	$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist | Sort-Object -Unique
 	$whitelist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalDLLs | Sort-Object -Unique
 	$AdditionalScanPaths = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).AdditionalScanPaths | Sort-Object -Unique
 }
 else {
 	[void](New-Item $PSScriptRoot\SK_LU_settings.json)
 	Set-Content $PSScriptRoot\SK_LU_settings.json -Value (@{'Blacklist' = @(); 'AdditionalDLLs' = @(); 'AdditionalScanPaths' = @() } | ConvertTo-Json)
-	$blacklist = $null
 	$whitelist = $null
 	$AdditionalScanPaths = $null
 }
@@ -334,32 +367,26 @@ else {
 if (! $Scan) {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
 		Write-Host -NoNewline 'Loading cached locations... '
-		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json) | Sort-Object -Unique
+		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
 	}
 }	
 if ($dllcache) {
-	$dlls = $dllcache | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platforms $_.Platforms } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
-	$dlls = Get-GameFolders
-	$dlls += $AdditionalScanPaths
-	$dlls = $dlls | Sort-Object -Unique | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | Sort-Object | ConvertTo-Json))
+	$dlls = ScanAndCache $AdditionalScanPaths
 }
 if ($whitelist) {
 	$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
-$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList $blacklist
+$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 Write-Host 'Done'
 
 if ($NoGUI) {
-	$instances | ForEach-Object {
-		$destination = Join-Path -Path $_.Directory -ChildPath $_.Name
-		if ($destination -notin $blacklist) {	
-			Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$destination`""
-			Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $destination
-		}
+	$instances | where-object IsChecked -eq $true | ForEach-Object {
+		Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$($_.FullName)`""
+		Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $_.FullName
 	}
 	exit 0
 }
@@ -452,10 +479,10 @@ $_"
 
 $Events.ButtonTask = {
 	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
-		try{
+		try {
 			Unregister-ScheduledTask -TaskName 'Special K Local Updater Task' -Confirm:$false
 		}
-		catch{
+		catch {
 			Write-Error ($_.Exception.Message)
 			return
 		}
@@ -470,14 +497,11 @@ $Events.ButtonTask = {
 
 $Events.ButtonScan = {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
-	$dlls = Get-GameFolders
-	$dlls += $AdditionalScanPaths
-	$dlls = $dlls | Sort-Object -Unique | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls.FullName | Sort-Object | ConvertTo-Json))	
+	$dlls = ScanAndCache $AdditionalScanPaths
 	if ($whitelist) {
 		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
-	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList $blacklist 
+	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
 	$GUI.Nodes.Games.ItemsSource = [Array]$instances
@@ -593,7 +617,7 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 	})
 
 if (! $instances) {
-	Show-MessageBox -Message 'No SpecialK installs found' -Title $windowTitle -Button OK -Icon Warning
+	Show-MessageBox -Message 'No SpecialK installs found' -Title 'Error' -Button OK -Icon Warning
 	exit 1
 }
 $UpdateHandle = $UpdatePowershell.BeginInvoke()
