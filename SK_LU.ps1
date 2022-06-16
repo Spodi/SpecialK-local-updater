@@ -320,7 +320,7 @@ function ScanAndCache {
 	$dlls = Get-GameFolders
 	$dlls += $AdditionalScanPaths
 	$dlls = $dlls | Group-Object path | foreach-object { $_.Group[0] } | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, Platforms | ConvertTo-Json))
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, Platforms | ConvertTo-Json -Compress))
 	Write-Output $dlls
 }
 #endregion </FUNCTIONS>
@@ -374,7 +374,7 @@ if ($dllcache) {
 	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platforms $_.Platforms } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
-	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
+	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
 	$dlls = ScanAndCache $AdditionalScanPaths
 }
 if ($whitelist) {
@@ -474,7 +474,7 @@ $_"
 		$i++
 	}
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = [Array]$instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 }
 
 $Events.ButtonTask = {
@@ -496,35 +496,35 @@ $Events.ButtonTask = {
 }
 
 $Events.ButtonScan = {
-	Write-Host -NoNewline 'Scanning game folders for a local SpecialK.dll, this could take a while... '
+	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
 	$dlls = ScanAndCache $AdditionalScanPaths
 	if ($whitelist) {
 		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
-	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
+	$script:instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = [Array]$instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 }
 
 
 $Events.SelectAll = {
 	
 	if ($GUI.Nodes.CheckboxSelectAll.IsChecked) {
-		$instances | ForEach-Object {
+		$script:instances | ForEach-Object {
 			$_.IsChecked = $true
 		}
 	}
 	elseif ($GUI.Nodes.CheckboxSelectAll.IsChecked = $null) {
 	}
 	else {
-		$instances | ForEach-Object {
+		$script:instances | ForEach-Object {
 			$_.IsChecked = $false
-			$GUI.Nodes.CheckboxSelectAll.IsChecked = $false
 		}
+		$GUI.Nodes.CheckboxSelectAll.IsChecked = $false
 	}
 	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = [Array]$instances
+	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 }
 
 $Events.VariantChange = {
@@ -546,8 +546,11 @@ $Events.ButtonDelete = {
 This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
 		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $True | ForEach-Object {
 			Remove-Item $_.FullName
+			[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource,$_)] = $null
 		}
-		$GUI.Nodes.Games.ItemsSource = $GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $false
+		$script:instances = $script:instances | Where-Object { $_ } #clear $null
+		$GUI.Nodes.Games.ItemsSource = $null
+		$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 	}
 }
 
@@ -560,7 +563,7 @@ $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
 
 $GUI.WPF.Add_Loaded({
-		$GUI.Nodes.Games.ItemsSource = [Array]$instances
+		$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 	})
 
 #$GUI.Nodes.VersionColumn.ElementStyle.Triggers | out-host #
