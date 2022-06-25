@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v22.6.16
+	v22.6.25
  #>
 
 [CmdletBinding()]
@@ -86,6 +86,26 @@ Function ConvertFrom-VDF {
 	}
     
 }
+
+function Add-SteamAppIDText {
+	[CmdletBinding()]
+	param (
+		[Parameter(ValueFromPipeline)][PSCustomObject]$Games
+	)
+	process {
+		if ($Games.Platforms.PlatformName -notcontains 'Steam') {
+			if (Test-Path (Join-Path $_.Path steam_appid.txt)) {
+				$id = Get-Content -TotalCount 1 -LiteralPath (Join-Path $_.Path steam_appid.txt)
+				if ($id) {
+					[Array]$Games.Platforms += [PSCustomObject]@{PlatformName = "Steam"; id = $id }
+				}
+			}
+		}
+		Write-Output $Games
+	}
+
+}
+
 function Get-GameFolders { 
 	[CmdletBinding()]
 	param (
@@ -98,6 +118,7 @@ function Get-GameFolders {
 	$GOGRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games'
 	$EGSRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
 	$XBOXRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
+	$itchDatabase	=	Join-path $env:APPDATA '/itch/db/butler.db'
 
 	Invoke-Command {	
 		If ($DisabledPlattforms -notcontains 'Steam') {
@@ -187,13 +208,34 @@ function Get-GameFolders {
 					if (Test-Path $_) {
 						Write-output ([PSCustomObject]@{
 								PlatformName = 'XBOX'
-								id           = $null #
+								id           = $null #TODO: get AppID here
 								path         = ($_ + ((Get-Content "$_\.GamingRoot").Substring(5)).replace("`0", '')) # String needs to be cleaned out of null characters.
 							})
 					}
 				}
 			}
 		}
+
+		If ($DisabledPlattforms -notcontains 'itch') {
+			if (Test-Path $itchDatabase -PathType 'Leaf') {
+				Write-Verbose 'itch install found!'
+				if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
+					(./sqlite3.exe -json "C:\Users\Spodi\AppData\Roaming\itch\db\butler.db" "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
+						$_.verdict = $_.verdict | ConvertFrom-JSON
+						Write-output ([PSCustomObject]@{
+								PlatformName = 'itch'
+								id           = $_.game_id
+								path         = (Split-Path (Join-Path $_.verdict.basePath $_.verdict.candidates.Path))
+							})
+					}
+				}
+				else {
+					Write-Warning "itch install found, but no `"SQlite3.exe`" is present in `"$PSScriptRoot`".
+Please put the SQLite command line tool in `"$PSScriptRoot`" to add support for itch."
+				}
+			}
+		}
+
 		If ($DisabledPlattforms -notcontains 'SKIF') {
 			#Get custom SKIF games
 			if (Test-Path $SKIFRegistry) {
@@ -209,7 +251,7 @@ function Get-GameFolders {
 				}
 			}
 		}
-	}  | Group-Object 'path' | ForEach-object { ([PSCustomObject]@{Path = $_.Name; Platforms = ($_.Group | Select-object * -ExcludeProperty 'path') } | Add-Member -MemberType ScriptMethod -Name 'ToString' -Value { $this.path.ToString() } -PassThru -Force) } | Where-Object { (Test-Path -LiteralPath $_.Path -PathType 'Container') } | Sort-Object 'path' | Write-Output #remove duplicate and invalid entries and sort them nicely
+	}  | Group-Object 'path' | ForEach-object { ([PSCustomObject]@{Path = $_.Name; Platforms = ($_.Group | Select-object * -ExcludeProperty 'path') } | Add-SteamAppIDText | Add-Member -MemberType ScriptMethod -Name 'ToString' -Value { $this.path.ToString() } -PassThru -Force) } | Where-Object { (Test-Path -LiteralPath $_.Path -PathType 'Container') } | Sort-Object 'path' | Write-Output #remove duplicate and invalid entries and sort them nicely
 }
 function Find-SkDlls {
 	[CmdletBinding()]
@@ -546,7 +588,7 @@ $Events.ButtonDelete = {
 This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
 		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $True | ForEach-Object {
 			Remove-Item $_.FullName
-			[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource,$_)] = $null
+			[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource, $_)] = $null
 		}
 		$script:instances = $script:instances | Where-Object { $_ } #clear $null
 		$GUI.Nodes.Games.ItemsSource = $null
