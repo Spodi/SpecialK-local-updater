@@ -94,7 +94,7 @@ function Add-SteamAppIDText {
 	)
 	process {
 		if ($Games.Platforms.PlatformName -notcontains 'Steam') {
-			if (Test-Path (Join-Path $_.Path steam_appid.txt)) {
+			if (Test-Path (Join-Path $Games.Path steam_appid.txt)) {
 				$id = Get-Content -TotalCount 1 -LiteralPath (Join-Path $_.Path steam_appid.txt)
 				if ($id) {
 					[Array]$Games.Platforms += [PSCustomObject]@{PlatformName = "Steam"; id = $id }
@@ -170,7 +170,7 @@ function Get-GameFolders {
 					Write-output ([PSCustomObject]@{
 							PlatformName = 'GOG'
 							id           = $GOG.gameID
-							path         = $GOG.InstallDir
+							path         = $GOG.path
 						})
 				}
 			}
