@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v22.7.2
+	v22.8.11
  #>
 
 [CmdletBinding()]
@@ -17,253 +17,23 @@ param (
 	[Parameter()][switch]$NoGUI,
 	[Parameter()][switch]$Scan
 )
-	
+
+Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -Function 'Get-SkPath', 'Get-SkDll' -force
+Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -function 'Get-GameLibraries' , 'Group-GameLibraries' -force
+
 #region <FUNCTIONS>
-Function ConvertFrom-VDF {
-	<# 
- .Synopsis 
-     Reads a Valve Data File (VDF) formatted string into a custom object.
- .Description 
-     The ConvertFrom-VDF cmdlet converts a VDF-formatted string to a custom object (PSCustomObject) that has a property for each field in the VDF string. VDF is used as a textual data format for Valve software applications, such as Steam.
- .Parameter InputObject
-     Specifies the VDF strings to convert to PSObjects. Enter a variable that contains the string, or type a command or expression that gets the string. 
- .Example 
-     $vdf = ConvertFrom-VDF -InputObject (Get-Content ".\SharedConfig.vdf")
-     Description 
-     ----------- 
-     Gets the content of a VDF file named "SharedConfig.vdf" in the current location and converts it to a PSObject named $vdf
- .Inputs 
-     System.String
- .Outputs 
-     PSCustomObject
- .NOTES
-     Stol... er, borrowed from:
-     https://github.com/ChiefIntegrator/Steam-GetOnTop/blob/master/Modules/SteamTools/SteamTools.psm1
- #>
-	param
-	(
-		[Parameter(Position = 0, Mandatory = $true)]
-		[ValidateNotNullOrEmpty()]
-		[System.String[]]$InputObject
-	)
-	process {
-		$root = New-Object -TypeName PSObject
-		$chain = [ordered]@{}
-		$depth = 0
-		$parent = $root
-		$element = $null
-		
-		ForEach ($line in $InputObject) {
-			$quotedElements = (Select-String -Pattern '(?<=")([^\"\t\s]+\s?)+(?=")' -InputObject $line -AllMatches).Matches
-    
-			if ($quotedElements.Count -eq 1) {
-				# Create a new (sub) object
-				$element = New-Object -TypeName PSObject
-				Add-Member -InputObject $parent -MemberType NoteProperty -Name $quotedElements[0].Value -Value $element
-			}
-			elseif ($quotedElements.Count -eq 2) {
-				# Create a new String hash
-				Add-Member -InputObject $element -MemberType NoteProperty -Name $quotedElements[0].Value -Value $quotedElements[1].Value
-			}
-			elseif ($line -match '{') {
-				$chain.Add($depth, $element)
-				$depth++
-				$parent = $chain.($depth - 1) # AKA $element
-                
-			}
-			elseif ($line -match '}') {
-				$depth--
-				$parent = $chain.($depth - 1)
-				$element = $parent
-				$chain.Remove($depth)
-			}
-			else {
-				# Comments etc
-			}
-		}
 
-		return $root
-	}
-    
-}
-
-function Add-SteamAppIDText {
-	[CmdletBinding()]
-	param (
-		[Parameter(ValueFromPipeline)][PSCustomObject]$Games
-	)
-	process {
-		if ($Games.Platforms.PlatformName -notcontains 'Steam') {
-			if (Test-Path (Join-Path $Games.Path steam_appid.txt)) {
-				$id = Get-Content -TotalCount 1 -LiteralPath (Join-Path $_.Path steam_appid.txt)
-				if ($id) {
-					[Array]$Games.Platforms += [PSCustomObject]@{PlatformName = "Steam"; id = $id }
-				}
-			}
-		}
-		Write-Output $Games
-	}
-
-}
-
-function Get-GameFolders { 
-	[CmdletBinding()]
-	param (
-		[Parameter()][String[]]$DisabledPlattforms
-	)
-
-	# Game paths
-	$SteamRegistry	=	'Registry::HKEY_CURRENT_USER\Software\Valve\Steam\'
-	$SKIFRegistry	=	'Registry::HKEY_CURRENT_USER\SOFTWARE\Kaldaien\Special K\Games'
-	$GOGRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games'
-	$EGSRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
-	$XBOXRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
-	$itchDatabase	=	Join-path $env:APPDATA '/itch/db/butler.db'
-
-	Invoke-Command {	
-		If ($DisabledPlattforms -notcontains 'Steam') {
-			#get Steam games
-			if (Test-Path $SteamRegistry) {
-				Write-Verbose 'Steam install found!'
-
-				$steamPath = "$((Get-ItemProperty $SteamRegistry).SteamPath)".Replace('/', '\')
-
-				# Old: \steamapps\libraryfolders.vdf
-				# New:    \config\libraryfolders.vdf
-
-				If (Test-Path "$($steamPath)\config\libraryfolders.vdf") {
-					$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\config\libraryfolders.vdf" -Encoding UTF8)
-				}
-				else {
-					$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\steamapps\libraryfolders.vdf" -Encoding UTF8)
-				}
-
-				#what even is this monstrosity? :D
-				$steamlib = $steamVdf.libraryfolders | Get-Member -MemberType NoteProperty, Property | Select-Object -ExpandProperty Name | ForEach-Object { #this is for getting the nested objects name
-					if ($null -ne $steamVdf.libraryfolders.$_.path) {
-						$steamVdf.libraryfolders.$_.path
-					}
-				}
-				($steamlib -replace '\\\\', '\') | ForEach-Object {
-					if (Test-Path $_) {
-						ForEach ($file in (Get-ChildItem "$_\SteamApps\*.acf") ) {
-							$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
-							if ($acf.AppState.name) {
-								Write-output ([PSCustomObject]@{
-										PlatformName = 'Steam'
-										id           = $acf.AppState.appid
-										path         = (Join-Path (Join-Path $_ '\SteamApps\common\') $acf.AppState.installdir) #don't care about things in other folders, like \SteamApps\music. Non existing paths are filtered out later.
-									})
-							}
-						}
-					}
-				}
-			}
-		}
-		If ($DisabledPlattforms -notcontains 'GOG') {
-			#Get GOG games
-			if (Test-Path $GOGRegistry) {
-				Write-Verbose 'GOG install found!'
-
-		(Get-Item -Path $GOGRegistry).GetSubKeyNames() | ForEach-Object {
-					$GOG = Get-ItemProperty -Path "$GOGRegistry\$_"
-					Write-output ([PSCustomObject]@{
-							PlatformName = 'GOG'
-							id           = $GOG.gameID
-							path         = $GOG.path
-						})
-				}
-			}
-		}
-		If ($DisabledPlattforms -notcontains 'EGS') {
-			#Get EGS games
-			if (Test-Path $EGSRegistry) { 
-				Write-Verbose 'EGS install found!'
-
-				$EGSlibrary = (Get-ItemProperty -Path $EGSRegistry).AppDataPath
-				if (Test-Path "$EGSlibrary\Manifests") {
-					Get-ChildItem -File "$EGSlibrary\Manifests" | ForEach-Object {
-						$file = $_.FullName
-						$EGS = (Get-Content -Path $file -Encoding UTF8) | ConvertFrom-Json
-						Write-output ([PSCustomObject]@{
-								PlatformName = 'EGS'
-								id           = $EGS.InstallationGuid
-								path         = $EGS.InstallLocation
-							})
-					}
-				}
-			}
-		}
-		If ($DisabledPlattforms -notcontains 'XBOX') {
-			#Get XBOX games
-			if (Test-Path $XBOXRegistry) {
-				
-				Write-Verbose 'XBOX install found!'
-				$xboxDrives = (Get-ChildItem -Path "$XBOXRegistry\*\*") | ForEach-Object {
-					# Gets registered drive letter
-					Write-output (($_ | Get-ItemProperty).Root).Replace('\\?\', '').Substring(0, 3) 	
-				}
-				# Gets install folders
-		($xboxDrives | Sort-Object -Unique) | ForEach-Object {
-					if (Test-Path $_) {
-						Write-output ([PSCustomObject]@{
-								PlatformName = 'XBOX'
-								id           = $null #TODO: get AppID here
-								path         = ($_ + ((Get-Content "$_\.GamingRoot").Substring(5)).replace("`0", '')) # String needs to be cleaned out of null characters.
-							})
-					}
-				}
-			}
-		}
-
-		If ($DisabledPlattforms -notcontains 'itch') {
-			if (Test-Path $itchDatabase -PathType 'Leaf') {
-				Write-Verbose 'itch install found!'
-				if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
-					(./sqlite3.exe -json "C:\Users\Spodi\AppData\Roaming\itch\db\butler.db" "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
-						$_.verdict = $_.verdict | ConvertFrom-JSON
-						Write-output ([PSCustomObject]@{
-								PlatformName = 'itch'
-								id           = $_.game_id
-								path         = (Split-Path (Join-Path $_.verdict.basePath $_.verdict.candidates.Path))
-							})
-					}
-				}
-				else {
-					Write-Warning "itch install found, but no `"SQlite3.exe`" is present in `"$PSScriptRoot`".
-Please put the SQLite command line tool in `"$PSScriptRoot`" to add support for itch."
-				}
-			}
-		}
-
-		If ($DisabledPlattforms -notcontains 'SKIF') {
-			#Get custom SKIF games
-			if (Test-Path $SKIFRegistry) {
-				Write-Verbose 'SKIF install found!'
-
-				(Get-Item -Path $SKIFRegistry).GetSubKeyNames() | ForEach-Object {
-					$SKIFCustom = Get-ItemProperty -Path "$SKIFRegistry\$_"
-					Write-output ([PSCustomObject]@{
-							PlatformName = 'SKIF'
-							id           = $SKIFCustom.ID
-							path         = $SKIFCustom.InstallDir
-						})
-				}
-			}
-		}
-	}  | Group-Object 'path' | ForEach-object { ([PSCustomObject]@{Path = $_.Name; Platforms = ($_.Group | Select-object * -ExcludeProperty 'path') } | Add-SteamAppIDText | Add-Member -MemberType ScriptMethod -Name 'ToString' -Value { $this.path.ToString() } -PassThru -Force) } | Where-Object { (Test-Path -LiteralPath $_.Path -PathType 'Container') } | Sort-Object 'path' | Write-Output #remove duplicate and invalid entries and sort them nicely
-}
 function Find-SkDlls {
 	[CmdletBinding()]
 	param (
-		[Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)][String]$Path,
-		[Parameter(ValueFromPipelineByPropertyName)]$Platforms
+		[Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)][String]$Path,
+		[Parameter(ValueFromPipelineByPropertyName)]$PlatformInfo
 	)
 	begin {
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
-		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru Platforms $Platforms | Write-Output
+		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru PlatformInfo $PlatformInfo | Write-Output
 	}
 }
 function Update-DllList { 
@@ -273,7 +43,7 @@ function Update-DllList {
 	)
 	begin {
 		$blacklist = (Get-Content $PSScriptRoot\SK_LU_settings.json | ConvertFrom-Json).Blacklist | Sort-Object -Unique
-		$fixedVersions = (Get-Content $PSScriptRoot\SK_LU_fixedVersions.json | ConvertFrom-Json) | Select-Object PlatformName, id
+		$fixedVersions = (Get-Content $PSScriptRoot\SK_LU_fixedVersions.json | ConvertFrom-Json)
 	}
 	process {
 		$obj = New-Object PSObject
@@ -286,7 +56,7 @@ function Update-DllList {
 		if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 		}
-		elseif (($dlls.Platforms | foreach-object { $_ -in [string[]]$fixedVersions }) -contains $true) {
+		elseif (($dlls.PlatformInfo | foreach-object { $_ -in [string[]]$fixedVersions.PlatformInfo }) -contains $true) {
 			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 		}
 		else {
@@ -359,16 +129,14 @@ function New-XMLNamespaceManager {
 
 function ScanAndCache {
 	param($AdditionalScanPath)
-	$dlls = Get-GameFolders
+	$dlls = Get-GameLibraries | Group-GameLibraries
 	$dlls += $AdditionalScanPaths
 	$dlls = $dlls | Group-Object path | foreach-object { $_.Group[0] } | Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, Platforms | ConvertTo-Json -Compress))
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, PlatformInfo | ConvertTo-Json -Compress))
 	Write-Output $dlls
 }
 #endregion </FUNCTIONS>
 
-
-Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -force
 
 $whitelist = $null
 $dllcache = $null
@@ -413,7 +181,7 @@ if (! $Scan) {
 	}
 }	
 if ($dllcache) {
-	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platforms $_.Platforms } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru PlatformInfo $_.PlatformInfo } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
