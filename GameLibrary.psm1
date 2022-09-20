@@ -210,8 +210,8 @@ function Get-LibraryItch {
 	if (Test-Path $itchDatabase -PathType 'Leaf') {
 		Write-Verbose 'itch install found!'
 		if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
-			$games = (./sqlite3.exe -json "C:\Users\Spodi\AppData\Roaming\itch\db\butler.db" "SELECT * FROM games;" | ConvertFrom-JSON)
-		(./sqlite3.exe -json "C:\Users\Spodi\AppData\Roaming\itch\db\butler.db" "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
+			$games = (./sqlite3.exe -json $itchDatabase "SELECT * FROM games;" | ConvertFrom-JSON)
+		(./sqlite3.exe -json $itchDatabase "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
 				$_.verdict = $_.verdict | ConvertFrom-JSON
 				$itchGamePath = (Split-Path (Join-Path $_.verdict.basePath $_.verdict.candidates.Path))
 				if (Test-Path $itchGamePath) {
