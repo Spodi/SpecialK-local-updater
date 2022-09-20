@@ -211,18 +211,23 @@ function Get-LibraryItch {
 		Write-Verbose 'itch install found!'
 		if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
 			$games = (./sqlite3.exe -json $itchDatabase "SELECT * FROM games;" | ConvertFrom-JSON)
-		(./sqlite3.exe -json $itchDatabase "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
+			$database = (./sqlite3.exe -json $itchDatabase "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
 				$_.verdict = $_.verdict | ConvertFrom-JSON
-				$itchGamePath = (Split-Path (Join-Path $_.verdict.basePath $_.verdict.candidates.Path))
-				if (Test-Path $itchGamePath) {
+				$_
+			}
+			$database | ForEach-Object {
+				foreach ($candidate in $_.verdict.candidates) {
+					$itchGamePath = (Split-Path (Join-Path $_.verdict.basePath $candidate.path))
+					if (Test-Path $itchGamePath) {
 					([PSCustomObject]@{
-						Name         = ($games | Where-Object 'id' -EQ $_.game_id).title
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'itch'
-							ID   = $_.game_id
-						}
-						Path         = $itchGamePath
-					})
+							Name         = ($games | Where-Object 'id' -EQ $_.game_id).title
+							PlatformInfo = [PSCustomObject]@{
+								Name = 'itch'
+								ID   = $_.game_id
+							}
+							Path         = $itchGamePath
+						})
+					}
 				}
 			}
 		}
