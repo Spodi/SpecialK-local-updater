@@ -220,7 +220,8 @@ function Get-GameFolders {
 			if (Test-Path $itchDatabase -PathType 'Leaf') {
 				Write-Verbose 'itch install found!'
 				if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
-					(./sqlite3.exe -json "C:\Users\Spodi\AppData\Roaming\itch\db\butler.db" "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
+					$itchDatabase	=	Join-path $env:APPDATA '/itch/db/butler.db'
+					(./sqlite3.exe -json $itchDatabase "SELECT * FROM caves;" | ConvertFrom-JSON) | ForEach-Object {
 						$_.verdict = $_.verdict | ConvertFrom-JSON
 						Write-output ([PSCustomObject]@{
 								PlatformName = 'itch'
