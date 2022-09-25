@@ -1,6 +1,6 @@
 <#
 .NOTES
-Special K Powershell Command Library v22.06.10
+Special K Powershell Command Library v22.09.09
     Copyright (C) 2022  Spodi
 
     This program is free software: you can redistribute it and/or modify
@@ -122,7 +122,7 @@ function Get-SkDll {
 function Test-SkIsGlobal {
 	[CmdletBinding()]
 	param(
-		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName)][AllowEmptyString()][Alias('PSPath', 'LP', 'LiteralPath')]	[string]	$Path
+		[Parameter(ValueFromPipeline, ValueFromPipelineByPropertyName, Mandatory)][Alias('PSPath', 'LP', 'LiteralPath')]	[string]	$Path
 	)
 
 	$SK32 = (Join-Path -Path $Path -ChildPath '\SpecialK32.dll')
