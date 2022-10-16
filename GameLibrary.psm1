@@ -75,7 +75,7 @@ function Add-SteamAppIDText {
 		if (Test-Path (Join-Path $Games.Path steam_appid.txt)) {
 			$id = Get-Content -TotalCount 1 -LiteralPath (Join-Path $Games.Path steam_appid.txt)
 			if ($id) {
-				$obj = [PSCustomObject]@{Name = "Steam"; ID = $id }
+				$obj = [PSCustomObject]@{Name = "Steam"; ID = [String]$id }
 				if (($Games.PlatformInfo | foreach-object { $_ -in [string[]]$obj }) -notcontains $true) {
 					[Array]$Games.PlatformInfo += $obj
 				}
@@ -120,7 +120,7 @@ function Get-LibrarySteam {
 									Name         = $acf.AppState.name
 									PlatformInfo = [PSCustomObject]@{
 										Name = 'Steam'
-										ID   = $acf.AppState.appid
+										ID   = [String]$acf.AppState.appid
 									}
 									Path         = $steamgamepath
 								})
@@ -144,7 +144,7 @@ function Get-LibraryGOG {
 						Name         = $GOG.gameName
 						PlatformInfo = [PSCustomObject]@{
 							Name = 'GOG'
-							ID   = $GOG.gameID
+							ID   = [String]$GOG.gameID
 						}
 						Path         = $GOG.path
 					})
@@ -168,7 +168,7 @@ function Get-LibraryEGS {
 							Name         = $EGS.DisplayName
 							PlatformInfo = [PSCustomObject]@{
 								Name = 'EGS'
-								ID   = $EGS.InstallationGuid
+								ID   = [String]$EGS.InstallationGuid
 							}
 							Path         = $EGS.InstallLocation
 						})
@@ -183,24 +183,41 @@ function Get-LibraryXBOX {
 	if (Test-Path $XBOXRegistry) {
 				
 		Write-Verbose 'XBOX install found!'
-		$xboxDrives = (Get-ChildItem -Path "$XBOXRegistry\*\*") | ForEach-Object {
-			# Gets registered drive letter
-			Write-output (($_ | Get-ItemProperty).Root).Replace('\\?\', '').Substring(0, 3) 	
+		$xbox = @()
+		$xbox = (Get-ChildItem -Path "$XBOXRegistry\*\*") | ForEach-Object {
+			$ImagePath = (($_ | Get-ItemProperty).Root).Replace('\\?\', '')
+			$appxmanifest = join-Path $ImagePath '/appxmanifest.xml'
+
+			if (Test-Path $appxmanifest -PathType 'Leaf') {
+				[xml]$xml = get-content (join-Path $ImagePath '/appxmanifest.xml') -Encoding 'Utf8'
+				Write-Output @{
+					Drive = $ImagePath.Substring(0, 3)
+					ID    = $xml.Package.Identity.Name
+					Name  = $xml.Package.Properties.DisplayName
+				}
+			}
 		}
 		# Gets install folders
-($xboxDrives | Sort-Object -Unique) | ForEach-Object {
-			if (Test-Path $_) {
-				$XBOXGamePath = ($_ + ((Get-Content "$_\.GamingRoot").Substring(5)).replace("`0", '')) # String needs to be cleaned out of null characters.
-				if (Test-Path $XBOXGamePath) {
-					Write-output ([PSCustomObject]@{
-							Name         = $null #TODO: get Name here
-							PlatformInfo = [PSCustomObject]@{
-								Name = 'XBOX'
-								ID   = $null #TODO: get AppID here
-							}
-							Path         = $XBOXGamePath
-						})
+		$xboxDrives = ($xbox.Drive | Sort-Object -Unique) | ForEach-Object {
+			if (Test-Path (join-path $_ '\.GamingRoot') -PathType 'Leaf') {
+				Write-Output @{
+					Drive = $_
+					Root  = join-Path $_ (((Get-Content "$_\.GamingRoot" -Encoding 'Unicode').Substring(4)).replace("`0", '')) # String needs to be cleaned out of null characters.
 				}
+			}
+		}
+		$xbox | ForEach-Object {
+			$_.add('Path', ( Join-Path ($xboxDrives | Where-Object Drive -EQ $_.Drive).Root "$($_.Name -replace ('\\|\/|:|\*|\?|"|<|>|\|','-'))\Content\"))
+
+			if (Test-Path $_.Path) {
+				Write-output ([PSCustomObject]@{
+						Name         = $_.Name 
+						PlatformInfo = [PSCustomObject]@{
+							Name = 'XBOX'
+							ID   = [String]$_.id 
+						}
+						Path         = $_.Path
+					})
 			}
 		}
 	}
@@ -223,7 +240,7 @@ function Get-LibraryItch {
 							Name         = ($games | Where-Object 'id' -EQ $_.game_id).title
 							PlatformInfo = [PSCustomObject]@{
 								Name = 'itch'
-								ID   = $_.game_id
+								ID   = [String]$_.game_id
 							}
 							Path         = $itchGamePath
 						})
@@ -250,7 +267,7 @@ function Get-LibrarySKIF {
 						Name         = $SKIFCustom.Name
 						PlatformInfo = [PSCustomObject]@{
 							Name = 'SKIF'
-							ID   = $SKIFCustom.ID
+							ID   = [String]$SKIFCustom.ID
 						}
 						Path         = $SKIFCustom.InstallDir
 					})
