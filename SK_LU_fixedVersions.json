@@ -7,7 +7,7 @@
         }
     },
     {
-        "Name": "FFX/X-2 HD Remaster",
+        "Name": "FINAL FANTASY X/X-2 HD Remaster",
         "PlatformInfo": {
             "Name": "Steam",
             "id": "359870"
@@ -28,7 +28,7 @@
         }
     },
     {
-        "Name": "Tales of Vesperia DE",
+        "Name": "Tales of Vesperia: Definitive Edition",
         "PlatformInfo": {
             "Name": "Steam",
             "id": "738540"
@@ -39,6 +39,13 @@
         "PlatformInfo": {
             "Name": "Steam",
             "id": "351970"
+        }
+    },
+    {
+        "Name": "Dragon's Dogma: Dark Arisen",
+        "PlatformInfo": {
+            "Name": "Steam",
+            "id": "367500"
         }
     }
 ]
