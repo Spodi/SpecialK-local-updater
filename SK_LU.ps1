@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v22.9.21
+	v22.12.18
  #>
 
 [CmdletBinding()]
@@ -27,13 +27,21 @@ function Find-SkDlls {
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)][String]$Path,
-		[Parameter(ValueFromPipelineByPropertyName)]$PlatformInfo
+		[Parameter(ValueFromPipelineByPropertyName)]$PlatformInfo,
+		[Parameter(ValueFromPipelineByPropertyName)]$Recurse
 	)
 	begin {
 		$dllsList = ('dxgi.dll', 'd3d11.dll', 'd3d9.dll', 'd3d8.dll', 'ddraw.dll', 'dinput8.dll', 'opengl32.dll')
 	}
 	process {
-		[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru PlatformInfo $PlatformInfo | Write-Output
+		Invoke-Command {
+			if ($Recurse) {
+				[System.IO.Directory]::EnumerateFiles($Path, '*.dll', 'AllDirectories') | Write-Output
+			}
+			else {
+				[System.IO.Directory]::EnumerateFiles($Path, '*.dll') | Write-Output
+			}
+		} | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru PlatformInfo $PlatformInfo | Write-Output
 	}
 }
 function Update-DllList { 
@@ -46,23 +54,25 @@ function Update-DllList {
 		$fixedVersions = (Get-Content $PSScriptRoot\SK_LU_fixedVersions.json | ConvertFrom-Json)
 	}
 	process {
-		$obj = New-Object PSObject
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $dlls.Name
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name FullName -Value $dlls.FullName
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Directory -Value $dlls.DirectoryName
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name InternalName -Value $dlls.VersionInfo.InternalName
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $dlls.VersionInfo.ProductVersion
-		Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($dlls.VersionInfo.InternalName -replace '[^0-9]' , '')
-		if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
-			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
+		if ($dlls.Name) {
+			$obj = New-Object PSObject
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name Name -Value $dlls.Name
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name FullName -Value $dlls.FullName
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name Directory -Value $dlls.DirectoryName
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name InternalName -Value $dlls.VersionInfo.InternalName
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name Version -Value $dlls.VersionInfo.ProductVersion
+			Add-Member -InputObject $obj -MemberType NoteProperty -Name Bits -Value ($dlls.VersionInfo.InternalName -replace '[^0-9]' , '')
+			if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
+				Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
+			}
+			elseif (($dlls.PlatformInfo | foreach-object { $_ -in [string[]]$fixedVersions.PlatformInfo }) -contains $true) {
+				Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
+			}
+			else {
+				Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $True -TypeName System.Boolean
+			}
+			Write-Output $obj
 		}
-		elseif (($dlls.PlatformInfo | foreach-object { $_ -in [string[]]$fixedVersions.PlatformInfo }) -contains $true) {
-			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
-		}
-		else {
-			Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $True -TypeName System.Boolean
-		}
-		Write-Output $obj
 
 	}
 }
@@ -129,9 +139,92 @@ function New-XMLNamespaceManager {
 
 function ScanAndCache {
 	param($AdditionalScanPath)
-	$dlls = Get-GameLibraries | Group-GameLibraries
-	$dlls += $AdditionalScanPaths
-	$dlls = $dlls | Group-Object path | foreach-object { $_.Group[0] } | Find-SkDlls
+	[System.Collections.ArrayList]$gamepaths = @()
+	$gamelist = Get-GameLibraries | Group-GameLibraries | Where-Object { ($_.Type -eq 'game') -or !$_.Type }
+	foreach ($entry in $gamelist) {
+		if ($entry.launch.executable) {
+			foreach ($executable in $entry.launch.executable) {
+				$path = split-path (join-path $entry.path $executable)
+
+				if (Test-path $path -PathType Container) {
+					[void]$gamepaths.add(
+						[PSCustomObject]@{
+							PlatformInfo = $entry.PlatformInfo
+							Path         = "$($path)\"
+						}
+					)
+				}
+				if (($path -match 'Launcher') -and ((split-path $path) -notmatch 'Launcher')) {
+					$path = (split-path $path)
+				}
+				
+			}
+		}
+		if ($entry.path) {
+			if (Test-path $entry.path -PathType Container) {
+				[void]$gamepaths.add(
+					[PSCustomObject]@{
+						PlatformInfo = $entry.PlatformInfo
+						Path         = $entry.path
+					}
+				)
+			}
+		}
+	}
+	
+	$knownunrealsub = @('Binaries\Win64', 'Binaries\Win32', 'bin\x64', 'bin\x86')
+	$knownsub = @('x64', 'x86', 'bin', 'binaries', 'win32', 'win64')
+
+	$unrealsubreg = $knownunrealsub -replace '$', '\' -replace '(\\|\^|\$|\.|\||\?|\*|\+|\(|\)|\[\{)', '\$1' -join '$|'
+
+	foreach ($path in $gamepaths.Clone()) {
+		
+		$exelist = [System.IO.Directory]::EnumerateDirectories($Path.path)
+		foreach ($exe in $exelist) {
+
+			if ($exe -notmatch 'Engine$') {
+				foreach ($appendix in $knownunrealsub) {
+					$finalpath = join-path $path.path $appendix
+					if (Test-path $finalpath -PathType Container) {
+						[void]$gamepaths.add(
+							[PSCustomObject]@{
+								PlatformInfo = $entry.PlatformInfo
+								Path         = "$($finalpath)\"
+							}
+						)
+					}
+				}
+			}
+
+		}
+		
+		if ($path.path -notmatch $unrealsubreg) {
+			foreach ($appendix in $knownsub) {
+				$finalpath = join-path $path.path $appendix
+				if (Test-path $finalpath -PathType Container) {
+					[void]$gamepaths.add(
+						[PSCustomObject]@{
+							PlatformInfo = $entry.PlatformInfo
+							Path         = "$($finalpath)\"
+						}
+					)
+				}
+			}
+
+		}
+	
+		ForEach ($path in $AdditionalScanPaths) {
+			[void]$gamepaths.add(
+				[PSCustomObject]@{
+					recurse = $true
+					Path    = $path
+				}	
+			)
+		}
+	}
+
+	#$gamepaths.ToArray() | Group-Object path, recurse | foreach-object { $_.Group[0] } | sort-object path | out-host
+	$dlls = $gamepaths.ToArray() | Group-Object path, recurse | foreach-object { $_.Group[0] } |  Find-SkDlls
 	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, PlatformInfo | ConvertTo-Json -Compress))
 	Write-Output $dlls
 }
@@ -188,7 +281,7 @@ else {
 	$dlls = ScanAndCache $AdditionalScanPaths
 }
 if ($whitelist) {
-	$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
+	[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
 }
 $instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 Write-Host 'Done'
@@ -309,7 +402,7 @@ $Events.ButtonScan = {
 	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
 	$dlls = ScanAndCache $AdditionalScanPaths
 	if ($whitelist) {
-		$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+		[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
 	$script:instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 	Write-Host 'Done'
