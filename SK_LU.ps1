@@ -489,7 +489,8 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 			})
 		$i = 0
 		while ($i -le 3) {
-			$NewestRemote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0].Name
+			$Remote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0]
+			$NewestRemote = $Remote.Name
 			if ($NewestRemote) {
 				break
 			}
@@ -511,8 +512,20 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 
 		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
 			$GUI.WPF.Dispatcher.Invoke([action] {
-					$GUI.Nodes.Update.Text = "There's an update available! ($NewestRemote)"
-					$GUI.Nodes.Update.Foreground = 'Green'
+
+				$GUI.Nodes.Update.Text = "There's an update available for your global Install: ($NewestRemote)`n"
+				$GUI.Nodes.Update.Foreground = 'Green'
+				if (($Remote.Installer -match "^https://") -or ($Remote.Installer -match "^http://")) {
+
+				
+
+					$InstallerLink = New-Object System.Windows.Documents.Hyperlink
+					$InstallerLink.Inlines.add("Download")
+					$InstallerLink.ToolTip = $Remote.Installer
+					$InstallerLink.Add_Click({Start-Process $Remote.Installer})
+
+					$GUI.Nodes.Update.Inlines.add($InstallerLink)
+				}
 				})
 		}
 		else {
