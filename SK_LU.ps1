@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v22.12.18
+	v23.01.15
  #>
 
 [CmdletBinding()]
@@ -335,7 +335,9 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 }
 
 $GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
-$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+if ([Array]$SKVariants.Variant -Contains 'Main') {
+	$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+}
 
 $selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
 if ($selectedVariant[0] -and $selectedVariant[1]) {
@@ -513,19 +515,19 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 		if ($NewestRemote -gt $NewestLocal.VersionInternal) {
 			$GUI.WPF.Dispatcher.Invoke([action] {
 
-				$GUI.Nodes.Update.Text = "There's an update available for your global Install: ($NewestRemote)`n"
-				$GUI.Nodes.Update.Foreground = 'Green'
-				if (($Remote.Installer -match "^https://") -or ($Remote.Installer -match "^http://")) {
+					$GUI.Nodes.Update.Text = "There's an update available for your global Install: ($NewestRemote)`n"
+					$GUI.Nodes.Update.Foreground = 'Green'
+					if (($Remote.Installer -match "^https://") -or ($Remote.Installer -match "^http://")) {
 
 				
 
-					$InstallerLink = New-Object System.Windows.Documents.Hyperlink
-					$InstallerLink.Inlines.add("Download")
-					$InstallerLink.ToolTip = $Remote.Installer
-					$InstallerLink.Add_Click({Start-Process $Remote.Installer})
+						$InstallerLink = New-Object System.Windows.Documents.Hyperlink
+						$InstallerLink.Inlines.add("Download")
+						$InstallerLink.ToolTip = $Remote.Installer
+						$InstallerLink.Add_Click({ Start-Process $Remote.Installer })
 
-					$GUI.Nodes.Update.Inlines.add($InstallerLink)
-				}
+						$GUI.Nodes.Update.Inlines.add($InstallerLink)
+					}
 				})
 		}
 		else {
