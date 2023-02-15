@@ -1,6 +1,6 @@
 <#
 .NOTES
-Spodi's Powershell Game Library Module v22.12.18
+Spodi's Powershell Game Library Module v22.01.26
     Copyright (C) 2022-2023  Spodi
 
     This program is free software: you can redistribute it and/or modify
