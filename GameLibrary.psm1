@@ -1,6 +1,6 @@
 <#
 .NOTES
-Spodi's Powershell Game Library Module v22.01.26
+Spodi's Powershell Game Library Module v23.02.16
     Copyright (C) 2022-2023  Spodi
 
     This program is free software: you can redistribute it and/or modify
@@ -198,9 +198,9 @@ function Get-LibrarySteam {
 				}
 			}
 		}
- 
-		if (Test-Path './vdfparse.exe' -PathType 'Leaf') {
-			$appinfo = (./vdfparse appinfo $steamapps.ID | ConvertFrom-Json -ErrorAction SilentlyContinue)
+		$VDFParse = Join-Path $PSScriptRoot 'VDFparse.exe'
+		if (Test-Path $VDFParse -PathType 'Leaf') {
+			$appinfo = (. $VDFParse appinfo $steamapps.ID) | ConvertFrom-Json -ErrorAction SilentlyContinue
 			if ($LASTEXITCODE -or !$appinfo) {
 				Write-Warning "Steam install found and `"VDFparse.exe`" found, but it encountered an error.
 Only basic info can be retrieved."	
@@ -411,8 +411,9 @@ function Get-LibraryItch {
 	$itchDatabase	=	Join-path $env:APPDATA '/itch/db/butler.db'
 	if (Test-Path $itchDatabase -PathType 'Leaf') {
 		Write-Verbose 'itch install found!'
-		if (Test-Path (Join-Path $PSScriptRoot 'SQlite3.exe') -PathType 'Leaf') {
-			$database = (./sqlite3.exe -json $itchDatabase "SELECT verdict,title,classification,game_id FROM caves INNER JOIN games ON caves.game_id = games.id;" | ConvertFrom-JSON) | ForEach-Object {
+		$sqlite = Join-Path $PSScriptRoot 'sqlite3.exe'
+		if (Test-Path $sqlite -PathType 'Leaf') {
+			$database = ( (. $sqlite -json $itchDatabase "SELECT verdict,title,classification,game_id FROM caves INNER JOIN games ON caves.game_id = games.id;") | ConvertFrom-JSON) | ForEach-Object {
 				$_.verdict = $_.verdict | ConvertFrom-JSON
 				$_
 			}
@@ -439,11 +440,12 @@ function Get-LibraryItch {
 				Write-Output $gameobject
 			}
 		}
-	}
-	else {
-		Write-Warning "itch install found, but no `"SQlite3.exe`" is present in `"$PSScriptRoot`".
+		else {
+			Write-Warning "itch install found, but no `"SQlite3.exe`" is present in `"$PSScriptRoot`".
 Please put the SQLite command line tool in `"$PSScriptRoot`" to add support for itch."
+		}
 	}
+	
 }
 function Get-LibrarySKIF {
 	$SKIFRegistry	=	'Registry::HKEY_CURRENT_USER\SOFTWARE\Kaldaien\Special K\Games'
