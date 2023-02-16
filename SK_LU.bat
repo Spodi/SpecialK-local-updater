@@ -5,6 +5,7 @@
 @echo off
 title SKSS
 color 17
+cd %~dp0
 if exist "%systemroot%\SysNative\WindowsPowerShell\v1.0\powershell.exe" (
 	echo Starting %systemroot%\SysNative\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Bypass -File "%~dpn0.ps1" %*
 	start %systemroot%\SysNative\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Bypass -File "%~dpn0.ps1" %*
