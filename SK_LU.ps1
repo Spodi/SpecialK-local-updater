@@ -382,6 +382,7 @@ $_"
 	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 }
 
+
 $Events.ButtonTask = {
 	if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ignore) {
 		try {
@@ -459,6 +460,11 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 	}
 }
 
+[System.Windows.Input.MouseButtonEventHandler]$clickEvent = {
+	if ( ($_.LeftButton -EQ 'Pressed') -and ($_.OriginalSource.Parent.Column.Header -EQ 'Directory')) {
+		. explorer.exe $_.OriginalSource.Text
+	}
+}
 
 $GUI.Nodes.UpdateButton.Add_Click($Events.ButtonUpdate)
 $GUI.Nodes.ScanButton.Add_Click($Events.ButtonScan)
@@ -466,7 +472,8 @@ $GUI.Nodes.TaskButton.Add_Click($Events.ButtonTask)
 $GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
 $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
-
+$GUI.Nodes.Games.Add_MouseDown($clickEvent)
+$GUI.Nodes.Games.Add_GotMouseCapture($test)
 $GUI.WPF.Add_Loaded({
 		$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 	})

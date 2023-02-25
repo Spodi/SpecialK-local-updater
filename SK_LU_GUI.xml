@@ -103,7 +103,8 @@
 
         <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
             <DataGrid.Columns>
-                <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}" EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
+                <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}"
+                    EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
                     <DataGridCheckBoxColumn.Header>
                         <CheckBox x:Name="CheckboxSelectAll" IsChecked="True"></CheckBox>
                     </DataGridCheckBoxColumn.Header>
@@ -112,6 +113,12 @@
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="{x:Type TextBlock}">
                             <Setter Property="Margin" Value="10,0,10,0" />
+                            <Setter Property="ToolTip" Value="Open Folder in Explorer" />
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Cursor" Value="Hand" />
+                                </Trigger>
+                            </Style.Triggers>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -159,22 +166,13 @@
         </Button>
         <Button x:Name="ScanButton" Content="Scan" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
-                <TextBlock>
-                    Scans alls known game folders for local Special K installations and updates the cache of known dlls.
-                    <LineBreak />
-                    Can take a long time!
-                </TextBlock>
+                <TextBlock> Scans alls known game folders for local Special K installations and updates the cache of known dlls. <LineBreak /> Can take a long time! </TextBlock>
             </Button.ToolTip>
         </Button>
         <Button x:Name="TaskButton" Content="Automatic Update" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
-                <TextBlock>
-                    Enables automatic update of known dlls (except blacklisted) via sheduled task.
-                    <LineBreak />
-                    Known dlls are all cached dlls from the last scan and AdditionalDLLs from the setting file.
-                    <LineBreak />
-                    Please edit the settings file (SK_LU_settings.json) to set blacklisted and additional dlls.
-                </TextBlock>
+                <TextBlock> Enables automatic update of known dlls (except blacklisted) via sheduled task. <LineBreak /> Known dlls are all cached dlls from the last scan and AdditionalDLLs from the setting file. <LineBreak /> Please edit the
+                    settings file (SK_LU_settings.json) to set blacklisted and additional dlls. </TextBlock>
             </Button.ToolTip>
         </Button>
         <Button x:Name="DeleteButton" Content="Delete" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top" Margin="0,0,90,10">
