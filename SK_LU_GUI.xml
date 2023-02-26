@@ -103,25 +103,51 @@
 
         <DataGrid x:Name="Games" Grid.Row="1" AutoGenerateColumns="False">
             <DataGrid.Columns>
-                <DataGridCheckBoxColumn Binding="{Binding Path=IsChecked,UpdateSourceTrigger=PropertyChanged}" MinWidth="30" MaxWidth="30" ElementStyle="{DynamicResource MetroDataGridCheckBox}"
-                    EditingElementStyle="{DynamicResource MetroDataGridCheckBox}">
-                    <DataGridCheckBoxColumn.Header>
-                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True"></CheckBox>
-                    </DataGridCheckBoxColumn.Header>
-                </DataGridCheckBoxColumn>
-                <DataGridTextColumn Header="Directory" Binding="{Binding Path=Directory}" MinWidth="70" Width="*" IsReadOnly="True">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="{x:Type TextBlock}">
-                            <Setter Property="Margin" Value="10,0,10,0" />
-                            <Setter Property="ToolTip" Value="Open Folder in Explorer" />
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Cursor" Value="Hand" />
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+
+                <DataGridTemplateColumn MinWidth="30" MaxWidth="30">
+                    <DataGridTemplateColumn.Header>
+                        <CheckBox x:Name="CheckboxSelectAll" IsChecked="True" />
+                    </DataGridTemplateColumn.Header>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center" IsChecked="{Binding Path=IsChecked, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
+                <DataGridTemplateColumn Header="Directory" MinWidth="70" Width="*" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Path=Directory}" x:Name="PathText">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}" BasedOn="{StaticResource DarkThemeButton}" >
+                                        <Setter Property="BorderBrush" Value="transparent" />
+                                        <Setter Property="Background" Value="transparent" />
+                                        <Setter Property="Margin" Value="10,0,10,0" />
+                                        <Setter Property="ToolTip" Value="Open Folder in Explorer" />
+                                        <Setter Property="Cursor" Value="Hand" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="{x:Type Button}">
+                                                    <Border Background="{TemplateBinding Background}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="Transparent" />
+                                                <Setter Property="Foreground" Value="§VersionForeground§" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
                 <DataGridTextColumn Header="Name" Binding="{Binding Path=Name}" MinWidth="70" Width="Auto" MaxWidth="100" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="{x:Type TextBlock}">
@@ -166,13 +192,13 @@
         </Button>
         <Button x:Name="ScanButton" Content="Scan" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
-                <TextBlock> Scans alls known game folders for local Special K installations and updates the cache of known dlls. <LineBreak /> Can take a long time! </TextBlock>
+                <TextBlock> Scans alls known game folders for local Special K installations and updates the cache of known dlls. <LineBreak /> Can take a long time!</TextBlock>
             </Button.ToolTip>
         </Button>
         <Button x:Name="TaskButton" Content="Automatic Update" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
                 <TextBlock> Enables automatic update of known dlls (except blacklisted) via sheduled task. <LineBreak /> Known dlls are all cached dlls from the last scan and AdditionalDLLs from the setting file. <LineBreak /> Please edit the
-                    settings file (SK_LU_settings.json) to set blacklisted and additional dlls. </TextBlock>
+                    settings file (SK_LU_settings.json) to set blacklisted and additional dlls.</TextBlock>
             </Button.ToolTip>
         </Button>
         <Button x:Name="DeleteButton" Content="Delete" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Right" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top" Margin="0,0,90,10">

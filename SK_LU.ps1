@@ -15,8 +15,12 @@
 [CmdletBinding()]
 param (
 	[Parameter()][switch]$NoGUI,
-	[Parameter()][switch]$Scan
+	[Parameter()][switch]$Scan,
+	[Parameter()][string]$WorkingDir
 )
+
+#$WorkingDir | out-Host
+#[string](get-location) | out-host
 
 Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -Function 'Get-SkPath', 'Get-SkDll' -force
 Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -function 'Get-GameLibraries' , 'Group-GameLibraries' -force
@@ -337,13 +341,15 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 $GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
 if ([Array]$SKVariants.Variant -Contains 'Main') {
 	$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
+} else {
+	$GUI.Nodes.VariantsComboBox.SelectedIndex = '0'
 }
 
-$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
-if ($selectedVariant[0] -and $selectedVariant[1]) {
+[Array]$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+if ($selectedVariant.count -eq 2) {
 	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
 }
-elseif ($selectedVariant[0]) {
+elseif ($selectedVariant.Count -eq 1) {
 	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
 }
 else {
@@ -434,11 +440,11 @@ $Events.SelectAll = {
 }
 
 $Events.VariantChange = {
-	$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
-	if ($selectedVariant[0] -and $selectedVariant[1]) {
+	[Array]$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+	if ($selectedVariant.count -eq 2) {
 		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
 	}
-	elseif ($selectedVariant[0]) {
+	elseif ($selectedVariant.count -eq 1) {
 		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
 	}
 	else {
@@ -460,19 +466,27 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 	}
 }
 
-[System.Windows.Input.MouseButtonEventHandler]$Events.ClickGameGrid = {
-	if ( ($_.LeftButton -EQ 'Pressed') -and ($_.OriginalSource.Parent.Column.Header -EQ 'Directory')) {
-		. explorer.exe $_.OriginalSource.Text
+[System.Windows.Input.MouseButtonEventHandler]$Events.ClickGameGrid = { # )
+	if ( ($_.LeftButton -EQ 'Pressed') -and ($_.OriginalSource.Name -EQ 'PathText') ) {
+		$_.OriginalSource.DataContext.FullName
+		. explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)"
 	}
 }
+[System.Windows.RoutedEventHandler]$Events.ButtonClickHandler = {
+	If ($_.OriginalSource.Name -eq 'UpdateButton') {. $Events.ButtonUpdate}
+	elseif ($_.OriginalSource.Name -eq 'ScanButton') {. $Events.ButtonScan}
+	elseif ($_.OriginalSource.Name -eq 'TaskButton') {. $Events.ButtonTask}
+	elseif ($_.OriginalSource.Name -eq 'PathText') {. explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)"}
+	
+	}
 
-$GUI.Nodes.UpdateButton.Add_Click($Events.ButtonUpdate)
-$GUI.Nodes.ScanButton.Add_Click($Events.ButtonScan)
-$GUI.Nodes.TaskButton.Add_Click($Events.ButtonTask)
+# $GUI.Nodes.UpdateButton.Add_Click()
+# $GUI.Nodes.ScanButton.Add_Click()
+# $GUI.Nodes.TaskButton.Add_Click()
 $GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
 $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
-$GUI.Nodes.Games.Add_MouseDown($Events.ClickGameGrid)
+$GUI.WPF.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, $Events.ButtonClickHandler)
 
 $GUI.WPF.Add_Loaded({
 		$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
