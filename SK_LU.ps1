@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v23.02.15
+	v23.07.26
  #>
 
 [CmdletBinding()]
@@ -77,7 +77,7 @@ function Update-DllList {
 	}
 }
 function Register-UpdateTask {
-	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "$PSScriptRoot\SK_LocalUpdater.ps1 -nogui"
+	$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "`"$PSCommandPath`" -nogui"
 	$trigger = New-ScheduledTaskTrigger -Daily -At 5pm
 	$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME"
 	$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RunOnlyIfNetworkAvailable
