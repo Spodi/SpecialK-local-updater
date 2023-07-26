@@ -351,3 +351,8 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+7z.dll
+7z.exe
+pack.bat
+SpecialK-local-updater.7z 
