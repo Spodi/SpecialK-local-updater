@@ -490,9 +490,6 @@ $Events.ButtonDelete = {
 This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
 		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -EQ $True | ForEach-Object {
 			Remove-Item $_.FullName
-			if ($_.FullName -in (Get-Item 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\').Property) {
-				Remove-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\' $_.FullName
-			}
 			if ($GUI.Nodes.Games.ItemsSource.Count -gt 1) {
 				[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource, $_)] = $null
 			}
