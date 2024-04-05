@@ -190,14 +190,19 @@
                 </TextBlock>
             </Button.ToolTip>
         </Button>
-        <Button x:Name="ScanButton" Content="Scan" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
+        <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
-                <TextBlock> Scans alls known game folders for local Special K installations and updates the cache of known dlls. <LineBreak /> Can take a long time!</TextBlock>
+                <TextBlock>Refreshes the list from cache.</TextBlock>
+            </Button.ToolTip>
+        </Button>
+        <Button x:Name="ScanButton" Content="Full Scan" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Left" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top" Margin="90,0,10,10">
+            <Button.ToolTip>
+                <TextBlock>Scans alls known game folders for local Special K installations and updates the cache of known dlls. <LineBreak /> Can take a long time!</TextBlock>
             </Button.ToolTip>
         </Button>
         <Button x:Name="TaskButton" Content="Automatic Update" Style="{StaticResource DarkThemeButton}" Grid.Row="2" HorizontalAlignment="Center" MinWidth="75" ToolTipService.ShowDuration="10000" ToolTipService.Placement="Top">
             <Button.ToolTip>
-                <TextBlock> Enables automatic update of known dlls (except blacklisted) via sheduled task. <LineBreak /> Known dlls are all cached dlls from the last scan and AdditionalDLLs from the setting file. <LineBreak /> Please edit the
+                <TextBlock> Enables automatic update of known dlls (except blacklisted) via sheduled task. <LineBreak /> Known dlls are all cached dlls from the last scan and AdditionalDLLs from the settings file. <LineBreak /> Please edit the
                     settings file (SK_LU_settings.json) to set blacklisted and additional dlls.</TextBlock>
             </Button.ToolTip>
         </Button>

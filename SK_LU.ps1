@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v24.04.05
+	v24.04.05.1
  #>
 
 [CmdletBinding()]
@@ -286,7 +286,10 @@ else {
 	$AdditionalScanPaths = $null
 }
 
-if (! $Scan) {
+$Events = @{}
+$Events.ButtonRefresh = {
+	$dlls = $null
+
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
 		Write-Host -NoNewline 'Loading cached locations... '
 		$cacheTime = Measure-Command {
@@ -294,18 +297,30 @@ if (! $Scan) {
 		}
 		Write-Host "Took $($cacheTime.TotalSeconds) Seconds."
 	}
-}	
-if ($dllcache) {
-	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platform $_.Platform } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+
+	$SkRegistryLocal = 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local'
+	if (Test-Path $SkRegistryLocal) {
+		Write-Host -NoNewline 'Loading SKs registry... '
+		$SKTime = Measure-Command {
+			[Array]$dlls = (Get-Item 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\').Property | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+		}
+		Write-Host "Took $($SKTime.TotalSeconds) Seconds."
+	
+	}
+	
+	if ($dllcache) {
+		[Array]$dlls += $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platform $_.Platform } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	}
+	
+	if ($whitelist) {
+		[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	}
+	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
+	$GUI.Nodes.Games.ItemsSource = $null
+	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 }
-else {
-	#Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
-	$dlls = ScanAndCache $AdditionalScanPaths
-}
-if ($whitelist) {
-	[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object { ($_.FullName -notin $dlls.FullName) } | Write-Output
-}
-$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
+
+. $Events.ButtonRefresh
 Write-Host 'Done'
 
 if ($NoGUI) {
@@ -385,7 +400,7 @@ $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ig
 		$GUI.Nodes.TaskButton.Content = 'Enable Automatic Update'
 	})
 
-$Events = @{}
+
 
 $Events.ButtonUpdate = {
 	$GUI.Nodes.Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
@@ -427,15 +442,13 @@ $Events.ButtonTask = {
 }
 
 $Events.ButtonScan = {
-	#Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
-	$dlls = ScanAndCache $AdditionalScanPaths
-	if ($whitelist) {
-		[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
-	}
+	$dlls = $null
+	. $Events.ButtonRefresh
+	$dlls += ScanAndCache $AdditionalScanPaths
 	$script:instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
-	Write-Host 'Done'
 	$GUI.Nodes.Games.ItemsSource = $null
 	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
+	Write-Host 'Done'
 }
 
 
@@ -477,6 +490,9 @@ $Events.ButtonDelete = {
 This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
 		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -EQ $True | ForEach-Object {
 			Remove-Item $_.FullName
+			if ($_.FullName -in (Get-Item 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\').Property) {
+				Remove-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\' $_.FullName
+			}
 			if ($GUI.Nodes.Games.ItemsSource.Count -gt 1) {
 				[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource, $_)] = $null
 			}
@@ -510,6 +526,7 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 $GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
 $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
+$GUI.Nodes.RefreshButton.Add_Click({ . $Events.ButtonRefresh; Write-Host 'Done' })
 $GUI.WPF.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, $Events.ButtonClickHandler)
 
 $GUI.WPF.Add_Loaded({
