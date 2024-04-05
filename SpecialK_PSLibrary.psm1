@@ -154,18 +154,17 @@ function Get-SkTeardownStatus {
 	Returns an array of which teardown handles are aviailable (32, 64). Might also get handles when the injection service is not running, but SK is still injected in a process.
 	#>
 
-	try {
-		$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown32")
+	[System.Threading.EventWaitHandle]$SK_Event = $null
+	if ( [System.Threading.EventWaitHandle]::TryOpenExisting("Local\SK_GlobalHookTeardown32", [ref]$SK_Event) ) {
 		$SK_Event.close()
 		Write-Output '32'
 	}
-	catch { }
-	try {
-		$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown64")
+
+
+	if ( [System.Threading.EventWaitHandle]::TryOpenExisting("Local\SK_GlobalHookTeardown64", [ref]$SK_Event) ) {
 		$SK_Event.close()
 		Write-Output '64'
 	}
-	catch { }
 }
 
 function Get-SkTeardown {
@@ -186,29 +185,30 @@ function Get-SkTeardown {
 		[Parameter(ValueFromPipeline, Mandatory)][ValidateSet('32', '64')]	[string]	$Bitness,
 		[Parameter()]														[int]		$Timeout
 	)
-
+	begin {
+		[System.Threading.EventWaitHandle]$SK_Event = $null
+		$times = [math]::Truncate($Timeout / 250)
+	}
 	process {
+		
 		if ($Timeout) {
-			$times = [math]::Truncate($Timeout / 250)
+			
 			$i = 0
 			while ($i -le $times) {
-				Try {
-					$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown$Bitness")
+				if ( [System.Threading.EventWaitHandle]::TryOpenExisting("Local\SK_GlobalHookTeardown$Bitness", [ref]$SK_Event) ) {
 					Write-Output $SK_Event
 					break
 				}
-				Catch {
+				else {
 					$i++
 					Start-Sleep -Milliseconds "250"
 				}
 			}
 		}
 		else {
-			Try {
-				$SK_Event = [System.Threading.EventWaitHandle]::OpenExisting("Local\SK_GlobalHookTeardown$Bitness")
+			if (  [System.Threading.EventWaitHandle]::TryOpenExisting("Local\SK_GlobalHookTeardown$Bitness", [ref]$SK_Event) ) {
 				Write-Output $SK_Event
 			}
-			Catch { }
 		}
 	}
 }
@@ -217,11 +217,11 @@ function Get-SkInjectedProcess {
 	[CmdletBinding()]
 	param(
 		[Parameter(ValueFromPipeline, Position = 0, Mandatory)][ValidateSet('32', '64')]	[string]	$Bitness,
-		[Parameter()]																		[switch]	$fast	
+		[Parameter()]																		[switch]	$InjectorOnly	
 	)
 
 	process {
-		if ($fast) {
+		if ($InjectorOnly) {
 			if ($Bitness -eq 32) {
 				if ([Environment]::Is64BitOperatingSystem) {
 					if ([Environment]::Is64BitProcess) {
@@ -231,8 +231,7 @@ function Get-SkInjectedProcess {
 							exit
 						} | ForEach-Object {
 							if ($_) {
-								Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-								$_
+								Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 							}
 						}
 						return
@@ -241,8 +240,7 @@ function Get-SkInjectedProcess {
 				#32-Bit OS and 32-bit Powershell or 64-Bit OS but 32-bit Powershell
 				get-process 'SKIFsvc32', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
 					if ($_) {
-						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-						$_
+						Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 					}
 				}
 			}
@@ -256,8 +254,7 @@ function Get-SkInjectedProcess {
 				if ([Environment]::Is64BitProcess) {
 					get-process 'SKIFsvc64', 'rundll32' -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
 						if ($_) {
-							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-							$_
+							Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 						}
 					}
 				}
@@ -267,8 +264,7 @@ function Get-SkInjectedProcess {
 						exit
 					} | ForEach-Object {
 						if ($_) {
-							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-							$_
+							Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 						}
 					}
 				}
@@ -283,16 +279,14 @@ function Get-SkInjectedProcess {
 							get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 							exit
 						} | ForEach-Object {
-							Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-							$_
+							Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 						}
 						return
 					}
 				}
 				#32-Bit OS and 32-bit Powershell or 64-Bit OS but 32-bit Powershell
 				get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
-					Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-					$_
+					Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 				}
 			}
 	
@@ -304,8 +298,7 @@ function Get-SkInjectedProcess {
 				}
 				if ([Environment]::Is64BitProcess) {
 					get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique | ForEach-Object {
-						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-						$_
+						Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 					}
 				}
 				else {
@@ -313,8 +306,7 @@ function Get-SkInjectedProcess {
 						get-process -ErrorAction 'SilentlyContinue' | where-object { $_.Modules.Product -eq 'Special K' } | Sort-Object -Unique
 						exit
 					} | ForEach-Object {
-						Add-Member -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
-						$_
+						Add-Member -PassThru -InputObject $_ -MemberType 'ScriptProperty' -Name 'SkModule' -Value { ($this.Modules | where-object Product -eq 'Special K').FileName }
 					}
 				}
 			}
