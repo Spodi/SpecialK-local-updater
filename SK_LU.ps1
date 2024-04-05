@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v23.07.26
+	v24.04.05
  #>
 
 [CmdletBinding()]
@@ -22,8 +22,8 @@ param (
 #$WorkingDir | out-Host
 #[string](get-location) | out-host
 
-Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -Function 'Get-SkPath', 'Get-SkDll' -force
-Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -function 'Get-GameLibraries' , 'Group-GameLibraries' -force
+Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -Function 'Get-SkPath', 'Get-SkDll' -Force
+Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -Function 'Get-GameLibraries' , 'Group-GameLibraries' -Force
 
 #region <FUNCTIONS>
 
@@ -31,7 +31,7 @@ function Find-SkDlls {
 	[CmdletBinding()]
 	param (
 		[Parameter(Mandatory, ValueFromPipelineByPropertyName, ValueFromPipeline)][String]$Path,
-		[Parameter(ValueFromPipelineByPropertyName)]$PlatformInfo,
+		[Parameter(ValueFromPipelineByPropertyName)]$Platform,
 		[Parameter(ValueFromPipelineByPropertyName)]$Recurse
 	)
 	begin {
@@ -45,7 +45,7 @@ function Find-SkDlls {
 			else {
 				[System.IO.Directory]::EnumerateFiles($Path, '*.dll') | Write-Output
 			}
-		} | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -like $null | Add-Member -PassThru PlatformInfo $PlatformInfo | Write-Output
+		} | Where-Object { ((Split-Path $_ -Leaf) -in $dllsList) } | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Where-Object LinkType -Like $null | Add-Member -PassThru Platform $Platform | Write-Output
 	}
 }
 function Update-DllList { 
@@ -69,7 +69,7 @@ function Update-DllList {
 			if ((Join-Path -Path $dlls.DirectoryName -ChildPath $dlls.Name) -in $blacklist) {
 				Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 			}
-			elseif (($dlls.PlatformInfo | foreach-object { $_ -in [string[]]$fixedVersions.PlatformInfo }) -contains $true) {
+			elseif (($dlls.Platform | ForEach-Object { $_ -in [string[]]$fixedVersions.Platform }) -contains $true) {
 				Add-Member -InputObject $obj -MemberType NoteProperty -Name IsChecked -Value $False -TypeName System.Boolean
 			}
 			else {
@@ -93,7 +93,7 @@ function Register-UpdateTask {
 		Write-Error -Message $_.Exception.Message
 		return
 	}
-	Write-Host "Task created succesfully"
+	Write-Host 'Task created succesfully'
 }
 function Show-MessageBox {
 	[CmdletBinding()]
@@ -133,10 +133,10 @@ function New-XMLNamespaceManager {
 	}
 
 	$XmlDocument.DocumentElement.Attributes | 
-	Where-Object { $_.Prefix -eq 'xmlns' } |
-	ForEach-Object {
-		$NsMgr.AddNamespace($_.LocalName, $_.Value)
-	}
+		Where-Object { $_.Prefix -eq 'xmlns' } |
+		ForEach-Object {
+			$NsMgr.AddNamespace($_.LocalName, $_.Value)
+		}
 
 	return , $NsMgr # unary comma wraps $NsMgr so it isn't unrolled
 }
@@ -144,38 +144,42 @@ function New-XMLNamespaceManager {
 function ScanAndCache {
 	param($AdditionalScanPath)
 	[System.Collections.ArrayList]$gamepaths = @()
-	$gamelist = Get-GameLibraries | Group-GameLibraries | Where-Object { ($_.Type -eq 'game') -or !$_.Type }
+	Write-Host -NoNewline 'Searching for registered games... '
+	$listTime = Measure-Command {
+		$gamelist = Get-GameLibraries | Where-Object { ($_.Type -eq 'Game') -or ($_.Type -eq 'Undefined') }
+	}
+	Write-Host "Took $($listTime.TotalSeconds) Seconds."
 	foreach ($entry in $gamelist) {
 		if ($entry.launch.executable) {
 			foreach ($executable in $entry.launch.executable) {
-				$path = split-path (join-path $entry.path $executable)
+				$path = Split-Path (Join-Path $entry.path $executable)
 
-				if (Test-path $path -PathType Container) {
+				if (Test-Path $path -PathType Container) {
 					[void]$gamepaths.add(
 						[PSCustomObject]@{
-							PlatformInfo = $entry.PlatformInfo
-							Path         = "$($path)\"
+							Platform = $entry.Platform
+							Path     = "$($path)\"
 						}
 					)
 				}
-				if (($path -match 'Launcher') -and ((split-path $path) -notmatch 'Launcher')) {
-					$path = (split-path $path)
+				if (($path -match 'Launcher') -and ((Split-Path $path) -notmatch 'Launcher')) {
+					$path = (Split-Path $path)
 				}
 				
 			}
 		}
 		if ($entry.path) {
-			if (Test-path $entry.path -PathType Container) {
+			if (Test-Path $entry.path -PathType Container) {
 				[void]$gamepaths.add(
 					[PSCustomObject]@{
-						PlatformInfo = $entry.PlatformInfo
-						Path         = $entry.path
+						Platform = $entry.Platform
+						Path     = $entry.path
 					}
 				)
 			}
 		}
 	}
-	
+
 	$knownunrealsub = @('Binaries\Win64', 'Binaries\Win32', 'bin\x64', 'bin\x86')
 	$knownsub = @('x64', 'x86', 'bin', 'binaries', 'win32', 'win64')
 
@@ -188,12 +192,12 @@ function ScanAndCache {
 
 			if ($exe -notmatch 'Engine$') {
 				foreach ($appendix in $knownunrealsub) {
-					$finalpath = join-path $path.path $appendix
-					if (Test-path $finalpath -PathType Container) {
+					$finalpath = Join-Path $path.path $appendix
+					if (Test-Path $finalpath -PathType Container) {
 						[void]$gamepaths.add(
 							[PSCustomObject]@{
-								PlatformInfo = $entry.PlatformInfo
-								Path         = "$($finalpath)\"
+								Platform = $entry.Platform
+								Path     = "$($finalpath)\"
 							}
 						)
 					}
@@ -204,12 +208,12 @@ function ScanAndCache {
 		
 		if ($path.path -notmatch $unrealsubreg) {
 			foreach ($appendix in $knownsub) {
-				$finalpath = join-path $path.path $appendix
-				if (Test-path $finalpath -PathType Container) {
+				$finalpath = Join-Path $path.path $appendix
+				if (Test-Path $finalpath -PathType Container) {
 					[void]$gamepaths.add(
 						[PSCustomObject]@{
-							PlatformInfo = $entry.PlatformInfo
-							Path         = "$($finalpath)\"
+							Platform = $entry.Platform
+							Path     = "$($finalpath)\"
 						}
 					)
 				}
@@ -227,10 +231,21 @@ function ScanAndCache {
 		}
 	}
 
-	#$gamepaths.ToArray() | Group-Object path, recurse | foreach-object { $_.Group[0] } | sort-object path | out-host
-	$dlls = $gamepaths.ToArray() | Group-Object path, recurse | foreach-object { $_.Group[0] } |  Find-SkDlls
-	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", ($dlls | select-object FullName, PlatformInfo | ConvertTo-Json -Compress))
+
+
+	$dlls = $gamepaths.ToArray() | Group-Object path, recurse | ForEach-Object { $_.Group[0] }
+	Write-Host -NoNewline "Scanning $($dlls.count) registered game folders... "
+	$enumTime = Measure-Command {
+		$dlls = $dlls | Find-SkDlls
+	}
+	Write-Host "Took $($enumTime.TotalSeconds) Seconds."
+	$JSON = $dlls | Select-Object FullName, Platform | ConvertTo-Json -Compress
+	if (!$JSON) {
+		$JSON = ' '
+	}
+	[System.IO.File]::WriteAllLines("$PSScriptRoot\SK_LU_cache.json", $JSON)
 	Write-Output $dlls
+		
 }
 #endregion </FUNCTIONS>
 
@@ -274,14 +289,17 @@ else {
 if (! $Scan) {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
 		Write-Host -NoNewline 'Loading cached locations... '
-		$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
+		$cacheTime = Measure-Command {
+			$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
+		}
+		Write-Host "Took $($cacheTime.TotalSeconds) Seconds."
 	}
 }	
 if ($dllcache) {
-	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru PlatformInfo $_.PlatformInfo } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+	$dlls = $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platform $_.Platform } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 }
 else {
-	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
+	#Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
 	$dlls = ScanAndCache $AdditionalScanPaths
 }
 if ($whitelist) {
@@ -291,7 +309,7 @@ $instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 Write-Host 'Done'
 
 if ($NoGUI) {
-	$instances | where-object IsChecked -eq $true | ForEach-Object {
+	$instances | Where-Object IsChecked -EQ $true | ForEach-Object {
 		Write-Host "Copy item `"$(Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName)`" to destination `"$($_.FullName)`""
 		Copy-Item -LiteralPath (Join-Path -Path $SK_DLLPath -ChildPath $_.InternalName) -Destination $_.FullName
 	}
@@ -325,7 +343,7 @@ if ((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 Add-Type -AssemblyName 'PresentationFramework'
 $GUI.NsMgr = (New-XMLNamespaceManager $XAML)
 $GUI.WPF = [Windows.Markup.XamlReader]::Load( (New-Object System.Xml.XmlNodeReader $XAML) )
-$GUI.Nodes = $XAML.SelectNodes("//*[@x:Name]", $GUI.NsMgr) | ForEach-Object {
+$GUI.Nodes = $XAML.SelectNodes('//*[@x:Name]', $GUI.NsMgr) | ForEach-Object {
 	@{ $_.Name = $GUI.WPF.FindName($_.Name) }
 }
 if ($LightTheme) {
@@ -341,11 +359,12 @@ if (Test-Path "$PSScriptRoot\SKIF.ico") {
 $GUI.Nodes.VariantsComboBox.ItemsSource = [Array]$SKVariants.Variant
 if ([Array]$SKVariants.Variant -Contains 'Main') {
 	$GUI.Nodes.VariantsComboBox.SelectedItem = 'Main'
-} else {
+}
+else {
 	$GUI.Nodes.VariantsComboBox.SelectedIndex = '0'
 }
 
-[Array]$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+[Array]$selectedVariant = $SKVersions | Where-Object Variant -EQ $GUI.Nodes.VariantsComboBox.SelectedItem
 if ($selectedVariant.count -eq 2) {
 	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
 }
@@ -353,7 +372,7 @@ elseif ($selectedVariant.Count -eq 1) {
 	$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
 }
 else {
-	$GUI.Nodes.Version.Text = "Error"
+	$GUI.Nodes.Version.Text = 'Error'
 }
 
 
@@ -398,7 +417,7 @@ $Events.ButtonTask = {
 			Write-Error ($_.Exception.Message)
 			return
 		}
-		Write-Host "Task removed succesfully"
+		Write-Host 'Task removed succesfully'
 		$GUI.Nodes.TaskButton.Content = 'Enable automatic update'
 	}
 	else {
@@ -408,7 +427,7 @@ $Events.ButtonTask = {
 }
 
 $Events.ButtonScan = {
-	Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
+	#Write-Host -NoNewline 'Scanning game folders for a local SpecialK dlls, this could take a while... '
 	$dlls = ScanAndCache $AdditionalScanPaths
 	if ($whitelist) {
 		[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
@@ -440,7 +459,7 @@ $Events.SelectAll = {
 }
 
 $Events.VariantChange = {
-	[Array]$selectedVariant = $SKVersions | where-object Variant -eq $GUI.Nodes.VariantsComboBox.SelectedItem
+	[Array]$selectedVariant = $SKVersions | Where-Object Variant -EQ $GUI.Nodes.VariantsComboBox.SelectedItem
 	if ($selectedVariant.count -eq 2) {
 		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version) | $($selectedVariant[1].Bits)Bit - v$($selectedVariant[1].Version)"
 	}
@@ -448,7 +467,7 @@ $Events.VariantChange = {
 		$GUI.Nodes.Version.Text = "$($selectedVariant[0].Bits)Bit - v$($selectedVariant[0].Version)"
 	}
 	else {
-		$GUI.Nodes.Version.Text = "Error"
+		$GUI.Nodes.Version.Text = 'Error'
 	}
 }
 
@@ -456,9 +475,14 @@ $Events.VariantChange = {
 $Events.ButtonDelete = {
 	if ((Show-MessageBox -Message 'Are you sure you want to delete selected items?
 This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Question') -EQ 'Yes') {
-		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -eq $True | ForEach-Object {
+		$GUI.Nodes.Games.ItemsSource | Where-Object 'IsChecked' -EQ $True | ForEach-Object {
 			Remove-Item $_.FullName
-			[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource, $_)] = $null
+			if ($GUI.Nodes.Games.ItemsSource.Count -gt 1) {
+				[array]$script:instances[[array]::IndexOf($GUI.Nodes.Games.ItemsSource, $_)] = $null
+			}
+			else {
+				$script:instances = @($null)
+			}
 		}
 		$script:instances = $script:instances | Where-Object { $_ } #clear $null
 		$GUI.Nodes.Games.ItemsSource = $null
@@ -469,16 +493,16 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 [System.Windows.Input.MouseButtonEventHandler]$Events.ClickGameGrid = { # )
 	if ( ($_.LeftButton -EQ 'Pressed') -and ($_.OriginalSource.Name -EQ 'PathText') ) {
 		$_.OriginalSource.DataContext.FullName
-		. explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)"
+		. explorer.exe /select, "$($_.OriginalSource.DataContext.FullName)"
 	}
 }
 [System.Windows.RoutedEventHandler]$Events.ButtonClickHandler = {
-	If ($_.OriginalSource.Name -eq 'UpdateButton') {. $Events.ButtonUpdate}
-	elseif ($_.OriginalSource.Name -eq 'ScanButton') {. $Events.ButtonScan}
-	elseif ($_.OriginalSource.Name -eq 'TaskButton') {. $Events.ButtonTask}
-	elseif ($_.OriginalSource.Name -eq 'PathText') {. explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)"}
+	If ($_.OriginalSource.Name -eq 'UpdateButton') { . $Events.ButtonUpdate }
+	elseif ($_.OriginalSource.Name -eq 'ScanButton') { . $Events.ButtonScan }
+	elseif ($_.OriginalSource.Name -eq 'TaskButton') { . $Events.ButtonTask }
+	elseif ($_.OriginalSource.Name -eq 'PathText') { . explorer.exe /select, "$($_.OriginalSource.DataContext.FullName)" }
 	
-	}
+}
 
 # $GUI.Nodes.UpdateButton.Add_Click()
 # $GUI.Nodes.ScanButton.Add_Click()
@@ -539,12 +563,12 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 
 					$GUI.Nodes.Update.Text = "There's an update available for your global Install: ($NewestRemote)`n"
 					$GUI.Nodes.Update.Foreground = 'Green'
-					if (($Remote.Installer -match "^https://") -or ($Remote.Installer -match "^http://")) {
+					if (($Remote.Installer -match '^https://') -or ($Remote.Installer -match '^http://')) {
 
 				
 
 						$InstallerLink = New-Object System.Windows.Documents.Hyperlink
-						$InstallerLink.Inlines.add("Download")
+						$InstallerLink.Inlines.add('Download')
 						$InstallerLink.ToolTip = $Remote.Installer
 						$InstallerLink.Add_Click({ Start-Process $Remote.Installer })
 
@@ -554,20 +578,19 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 		}
 		else {
 			$GUI.WPF.Dispatcher.Invoke([action] { 
-					$GUI.Nodes.Update.Text = ""
+					$GUI.Nodes.Update.Text = ''
 				})
 		}
 	})
 
 if (! $instances) {
-	Show-MessageBox -Message 'No SpecialK installs found' -Title 'Error' -Button OK -Icon Warning
-	exit 1
+	[void](Show-MessageBox -Message 'No local SpecialK installs found' -Title 'Error' -Button OK -Icon Warning)
 }
 $UpdateHandle = $UpdatePowershell.BeginInvoke()
 
 [void]$GUI.WPF.ShowDialog() #show window
 
-$UpdatePowershell.EndInvoke($UpdateHandle) | out-Host
+$UpdatePowershell.EndInvoke($UpdateHandle) | Out-Host
 $UpdatePowershell.Dispose()
 $UpdateRunspace.Close()
 exit 0

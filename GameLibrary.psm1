@@ -1,6 +1,6 @@
 <#
 .NOTES
-Spodi's Powershell Game Library Module v23.02.25
+Spodi's Powershell Game Library Module v24.04.05
     Copyright (C) 2022-2023  Spodi
 
     This program is free software: you can redistribute it and/or modify
@@ -17,546 +17,552 @@ Spodi's Powershell Game Library Module v23.02.25
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #>
 
-function Convert-PSObjectToHashtable {
-	param (
-		[Parameter(ValueFromPipeline)]
-		$InputObject
-	)
+enum AppType {
+	Unknown
+	Game
+	Demo
+	Application
+	AddOn
+	Music
+	Tool
+}
+enum PlatformName {
+	Unknown
+	Steam
+	EGS
+	GOG
+	XBOX
+	itch
+	SKIF
+}
+enum OSType {
+	Unknown
+	Windows
+	Linux
+	MacOS
+}
+enum Architecture {
+	Unknown = 0x0000
+	ALPHA = 0x0184
+	AM33 = 0x01d3
+	AMD64 = 0x8664 # aka x64
+	ARM = 0x01c0
+	ARMNT = 0x01c4 # aka ARMV7
+	ARM64 = 0xaa64 # aka ARMV8
+	EBC = 0x0ebc
+	I386 = 0x014c # aka x86
+	I860 = 0x014d
+	IA64 = 0x0200
+	M68K = 0x0268
+	M32R = 0x9041
+	MIPS16 = 0x0266
+	MIPSFPU = 0x0366
+	MIPSFPU16 = 0x0466
+	POWERPC = 0x01f0
+	POWERPCFP = 0x01f1
+	POWERPCBE = 0x01f2
+	R3000 = 0x0162
+	R4000 = 0x0166
+	R10000 = 0x0168
+	SH3 = 0x01a2
+	SH3DSP = 0x01a3
+	SH4 = 0x01a6
+	SH5 = 0x01a8
+	TRICORE = 0x0520
+	THUMB = 0x01c2
+	WCEMIPSV2 = 0x0169
+	ALPHA64 = 0x0284
+	Invalid = 0xffff
+}
 
-	process {
-		if ($null -eq $InputObject) { return $null }
-		if ($InputObject -is [Hashtable] -or $InputObject.GetType().Name -eq 'OrderedDictionary') { return $InputObject }
+class Platform {
+	[PlatformName]$Name
+	[String]$ID
+}
 
-		if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
-			$collection = @(
-				foreach ($object in $InputObject) { $object }
-			)
+class LaunchParamSet {
+	[String]$Executable
+	[String]$WorkingDir
+	[String]$Arguments
+	[OSType]$OS
+	[Architecture]$Arch
+	[String]$Description
 
-			Write-Output -NoEnumerate $collection
-		}
-		elseif ($InputObject -is [psobject]) {
-			$hash = @{}
-
-			foreach ($property in $InputObject.PSObject.Properties) {
-				$hash[$property.Name] = $property.Value
-			}
-
-			$hash
+	[String]ToString() {
+		if ($this.Arguments) {
+			return "$($this.Executable) $($this.Arguments)"
 		}
 		else {
-			$InputObject
+			return $this.Executable
 		}
 	}
 }
 
-# Helper function to determine executable architecture
-# From https://gist.github.com/MyITGuy/a0d462a6e218d1e5a940
-function Get-FileArch {
-    [CmdletBinding()]
-    PARAM(
-    	[Parameter(
-    		HelpMessage = "Enter binary file(s) to examine",
-    		Position = 0,
-    		Mandatory = $true,
-    		ValueFromPipeline = $true,
-    		ValueFromPipelineByPropertyName = $true
-    	)]
-    	[ValidateNotNullOrEmpty()]
-    	[ValidateScript({Test-Path $_.FullName})]
-    	[IO.FileInfo[]]
-    	$Path
-    )
-    
-    BEGIN {
-        # PE Header machine offset
-        [int32]$MACHINE_OFFSET = 4
-        # PE Header pointer offset
-        [int32]$PE_POINTER_OFFSET = 60
-        # Initial byte array size
-        [int32]$PE_HEADER_SIZE = 4096
-    }
-    
-    PROCESS {
-        # Create a location to place the byte data
-        [byte[]]$BYTE_ARRAY = New-Object -TypeName System.Byte[] -ArgumentList @(,$PE_HEADER_SIZE)
-        # Open the file for read access
-        $FileStream = New-Object -TypeName System.IO.FileStream -ArgumentList ($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read)
-        # Read the requested byte length into the byte array
-        $FileStream.Read($BYTE_ARRAY, 0, $BYTE_ARRAY.Length) | Out-Null
-        #
-        [int32]$PE_HEADER_ADDR = [System.BitConverter]::ToInt32($BYTE_ARRAY, $PE_POINTER_OFFSET)
-        try {
-    	    [int32]$machineUint = [System.BitConverter]::ToUInt16($BYTE_ARRAY, $PE_HEADER_ADDR + $MACHINE_OFFSET)
-        } catch {
-    	    $machineUint = 0xffff
-        }
-        switch ($machineUint) {
-    	    0x0000 {return 'UNKNOWN'}
-    	    0x0184 {return 'ALPHA'}
-    	    0x01d3 {return 'AM33'}
-    	    0x8664 {return 'AMD64'}
-    	    0x01c0 {return 'ARM'}
-    	    0x01c4 {return 'ARMNT'} # aka ARMV7
-    	    0xaa64 {return 'ARM64'} # aka ARMV8
-    	    0x0ebc {return 'EBC'}
-    	    0x014c {return 'I386'}
-    	    0x014d {return 'I860'}
-    	    0x0200 {return 'IA64'}
-    	    0x0268 {return 'M68K'}
-    	    0x9041 {return 'M32R'}
-    	    0x0266 {return 'MIPS16'}
-    	    0x0366 {return 'MIPSFPU'}
-    	    0x0466 {return 'MIPSFPU16'}
-    	    0x01f0 {return 'POWERPC'}
-    	    0x01f1 {return 'POWERPCFP'}
-    	    0x01f2 {return 'POWERPCBE'}
-    	    0x0162 {return 'R3000'}
-    	    0x0166 {return 'R4000'}
-    	    0x0168 {return 'R10000'}
-    	    0x01a2 {return 'SH3'}
-    	    0x01a3 {return 'SH3DSP'}
-    	    0x01a6 {return 'SH4'}
-    	    0x01a8 {return 'SH5'}
-    	    0x0520 {return 'TRICORE'}
-    	    0x01c2 {return 'THUMB'}
-    	    0x0169 {return 'WCEMIPSV2'}
-    	    0x0284 {return 'ALPHA64'}
-    	    0xffff {return 'INVALID'}
-        }
-    }
-    
-    END {
-        $FileStream.Close()
-        $FileStream.Dispose()
-    }
+class App {
+	[String]$Name
+	[AppType]$Type
+	[Platform[]]$Platform
+	[String]$Path
+	[LaunchParamSet[]]$Launch
 }
 
+$PSObjectToHashtable = {
+	function Convert-PSObjectToHashtable {
+		param (
+			[Parameter(ValueFromPipeline)]
+			$InputObject
+		)
 
+		process {
+			if ($null -eq $InputObject) { return $null }
+			if ($InputObject -is [Hashtable] -or $InputObject.GetType().Name -eq 'OrderedDictionary') { return $InputObject }
+
+			if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+				$collection = @(
+					foreach ($object in $InputObject) { $object }
+				)
+
+				Write-Output -NoEnumerate $collection
+			}
+			elseif ($InputObject -is [psobject]) {
+				$hash = @{}
+
+				foreach ($property in $InputObject.PSObject.Properties) {
+					$hash[$property.Name] = $property.Value
+				}
+
+				$hash
+			}
+			else {
+				$InputObject
+			}
+		}
+	}
+}
+. $PSObjectToHashtable
+function Convert-VDFTokens {
+	[CmdletBinding()]
+	param (
+		[Parameter()][String[]]$Tokens,
+		[Parameter()][int]$pos = 0
+	)
+	$out = @{}
+	for ($iVDFToken = $pos; $iVDFToken -lt $Tokens.count; $iVDFToken++) {
+		if ($Tokens[$iVDFToken + 1] -ne '{' -and $Tokens[$iVDFToken] -ne '}') {
+			$out.add($Tokens[$iVDFToken], $Tokens[$iVDFToken + 1])
+			$iVDFToken++
+		}
+		elseif ($Tokens[$iVDFToken + 1] -eq '{') {
+			$iVDFToken += 2
+			$out.add($Tokens[$iVDFToken - 2], (Convert-VDFTokens $Tokens ($iVDFToken)))
+
+		}
+		elseif ($Tokens[$iVDFToken] -eq '}') {
+			break
+		}
+	}
+	$out
+}
+Set-Variable iVDFToken -Option AllScope
+$inputRegex = [regex]::new('".*?"|[^{\s}]+|{|}', 'Compiled, IgnoreCase, CultureInvariant')
 Function ConvertFrom-VDF {
-	<# 
- .Synopsis 
-     Reads a Valve Data File (VDF) formatted string into a custom object.
- .Description 
-     The ConvertFrom-VDF cmdlet converts a VDF-formatted string to a custom object (PSCustomObject) that has a property for each field in the VDF string. VDF is used as a textual data format for Valve software applications, such as Steam.
- .Parameter InputObject
-     Specifies the VDF strings to convert to PSObjects. Enter a variable that contains the string, or type a command or expression that gets the string. 
- .Example 
-     $vdf = ConvertFrom-VDF -InputObject (Get-Content ".\SharedConfig.vdf")
-     Description 
-     ----------- 
-     Gets the content of a VDF file named "SharedConfig.vdf" in the current location and converts it to a PSObject named $vdf
- .Inputs 
-     System.String
- .Outputs 
-     PSCustomObject
- .NOTES
-     Stol... er, borrowed from:
-     https://github.com/ChiefIntegrator/Steam-GetOnTop/blob/master/Modules/SteamTools/SteamTools.psm1
- #>
 	param
 	(
 		[Parameter(Position = 0, Mandatory = $true)]
 		[ValidateNotNullOrEmpty()]
-		[System.String[]]$InputObject
+		[String[]]$InputObject
 	)
 	process {
-		$root = New-Object -TypeName PSObject
-		$chain = [ordered]@{}
-		$depth = 0
-		$parent = $root
-		$element = $null
-		
-		ForEach ($line in $InputObject) {
-			$quotedElements = (Select-String -Pattern '(?<=")([^\"\t\s]+\s?)+(?=")' -InputObject $line -AllMatches).Matches
-    
-			if ($quotedElements.Count -eq 1) {
-				# Create a new (sub) object
-				$element = New-Object -TypeName PSObject
-				Add-Member -InputObject $parent -MemberType NoteProperty -Name $quotedElements[0].Value -Value $element
-			}
-			elseif ($quotedElements.Count -eq 2) {
-				# Create a new String hash
-				Add-Member -InputObject $element -MemberType NoteProperty -Name $quotedElements[0].Value -Value $quotedElements[1].Value
-			}
-			elseif ($line -match '{') {
-				$chain.Add($depth, $element)
-				$depth++
-				$parent = $chain.($depth - 1) # AKA $element
-                
-			}
-			elseif ($line -match '}') {
-				$depth--
-				$parent = $chain.($depth - 1)
-				$element = $parent
-				$chain.Remove($depth)
-			}
-			else {
-				# Comments etc
-			}
-		}
-
-		return $root
+		$InputObject = $InputObject -replace '\/\/.*(\r\n|\r|\n|$)', ''
+		Convert-VDFTokens ($inputRegex.Matches($InputObject).Value -replace '^""$', $null -replace '^"(.+)"$', '$1')
 	}
     
 }
-
 function Add-SteamAppIDText {
 	[CmdletBinding()]
 	param (
-		[Parameter(ValueFromPipeline)][PSCustomObject]$Games
+		[Parameter(ValueFromPipeline)]$Games
 	)
 	process {
 		if ($Games.Path) {
 			if ($Games.Launch.Executable) {
 				
-				$path = $Games.Launch.Executable | foreach-object {
-					Join-Path (split-path (join-path $games.path $_)) steam_appid.txt
-				}
+				$path = $Games.Launch.Executable | & { Process {
+						Join-Path (Split-Path (Join-Path $games.path $_)) steam_appid.txt
+					} }
 			}
 			else {
 				$path = Join-Path $Games.Path steam_appid.txt
 			}
 		}
 		if ($path) {
-			$path | ForEach-Object {
-				if (Test-Path $_) {
-					$id = Get-Content -TotalCount 1 -LiteralPath $_
-					if ($id) {
-						$obj = [PSCustomObject]@{Name = "Steam"; ID = [String]$id }
-						if (($Games.PlatformInfo | foreach-object { $_ -in [string[]]$obj }) -notcontains $true) {
-							[Array]$Games.PlatformInfo += $obj
+			$path | & { Process {
+					if (Test-Path $_) {
+						$id = Get-Content -TotalCount 1 -LiteralPath $_
+						if ($id) { 
+							if (($Games.Platform | & { Process {
+								($_.Name -ne 'Steam' -or $_.ID -ne $id)
+										} }) ) {
+								[Array]$Games.Platform += [Platform]@{Name = 'Steam'; ID = $id }
+							}
 						}
 					}
-				}
-			}
+				} }
 		}
 		Write-Output $Games
 	}
 }
 
 function Get-LibrarySteam {
-	$SteamRegistry	=	'Registry::HKEY_CURRENT_USER\Software\Valve\Steam\'
+	$Registry	=	'Registry::HKEY_CURRENT_USER\Software\Valve\Steam\'
 	#get Steam games
-	if (Test-Path $SteamRegistry) {
+	if (Test-Path $registry) {
 		Write-Verbose 'Steam install found!'
 
-		$steamPath = "$((Get-ItemProperty $SteamRegistry).SteamPath)".Replace('/', '\')
+		$storePath = "$((Get-ItemProperty $registry).SteamPath)".Replace('/', '\')
 
 		# Old: \steamapps\libraryfolders.vdf
 		# New:    \config\libraryfolders.vdf
 
-		If (Test-Path "$($steamPath)\config\libraryfolders.vdf") {
-			$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\config\libraryfolders.vdf" -Encoding UTF8)
+		If (Test-Path "$($storePath)\config\libraryfolders.vdf") {
+			$steamVdf = ConvertFrom-VDF (Get-Content "$($storePath)\config\libraryfolders.vdf" -Encoding UTF8)
 		}
 		else {
-			$steamVdf = ConvertFrom-VDF (Get-Content "$($steamPath)\steamapps\libraryfolders.vdf" -Encoding UTF8)
+			$steamVdf = ConvertFrom-VDF (Get-Content "$($storePath)\steamapps\libraryfolders.vdf" -Encoding UTF8)
 		}
 
-		#what even is this monstrosity? :D
-		$steamlib = ($steamVdf.libraryfolders | Convert-PSObjectToHashtable).GetEnumerator() | ForEach-Object { #god, .GetEnumerator() makes it so much easier, than using get-member
-			if ($null -ne $_.value.path) {
-				$_.value.path
-			}
-		}
-		$steamapps = ($steamlib -replace '\\\\', '\') | ForEach-Object {
-			if (Test-Path $_) {
-				ForEach ($file in (Get-ChildItem "$_\SteamApps\*.acf") ) {
-					$acf = ConvertFrom-VDF (Get-Content $file -Encoding UTF8)
+		$libraryPaths = $steamVdf.libraryfolders.GetEnumerator() | & { Process {
+				#god, .GetEnumerator() makes it so much easier, than using get-member
+				if ($null -ne $_.value.path) {
+					$_.value.path
+				}
+			} }
+		$manifestFiles = ($libraryPaths -replace '\\\\', '\') | & { Process {
+				if (Test-Path $_) {
+					[System.IO.Directory]::EnumerateFiles("$_\SteamApps\", '*.acf')
+				} 
+			} }
+		$appids = $manifestFiles | & { Process { [System.IO.Path]::GetFileNameWithoutExtension($_) -replace 'appmanifest_', '' } } 
+	
+
+		$RSAppinfo = [powershell]::Create()
+		$RSAppinfo.Runspace.SessionStateProxy.SetVariable('appids', $appids)
+		$RSAppinfo.Runspace.SessionStateProxy.SetVariable('Root', $PSScriptRoot)
+		$RSAppinfo.Runspace.SessionStateProxy.SetVariable('PSObjectToHashtable', $PSObjectToHashtable)
+		[void]$RSAppinfo.AddScript({
+				$function = [ScriptBlock]::Create($PSObjectToHashtable)
+				. $function
+
+				$VDFParse = Join-Path $Root 'VDFparse.exe'
+				if (Test-Path $VDFParse -PathType 'Leaf') {
+					$appinfo = (. $VDFParse appinfo $appids) | ConvertFrom-Json -ErrorAction SilentlyContinue
+					if ($LASTEXITCODE -or !$appinfo) {
+						Write-Warning "Steam install found and `"VDFparse.exe`" found, but it encountered an error.
+Only basic info can be retrieved."	
+					}
+				}
+				else {
+					Write-Warning "Steam install found, but no `"VDFparse.exe`" is present in `"$Root`".
+Only basic info can be retrieved."
+				}
+
+				if ($appinfo) {
+					$appinfo.datasets | & { Process {
+							if ($_.Data.appinfo.depots) {
+								$_.Data.appinfo.depots = $_.Data.appinfo.depots | Convert-PSObjectToHashtable
+								$_.Data.appinfo.depots.GetEnumerator() | & { Process {
+										if ($_.Value.Manifests) {
+											$_.Value.Manifests = $_.Value.Manifests | Convert-PSObjectToHashtable
+										}
+									} }
+							}
+							if ($_.Data.appinfo.config.launch) {
+								$_.Data.appinfo.config.launch = $_.Data.appinfo.config.launch | Convert-PSObjectToHashtable
+											
+							}
+					
+						} }
+					Write-Output $appinfo
+				}
+				
+			})
+		$RSAppinfoHandle = $RSAppinfo.BeginInvoke()
+		
+		$steamapps = $manifestFiles | & { Process {
+				$manifest = ConvertFrom-VDF (Get-Content $_ -Encoding UTF8)
 					 
 						
-					if ($acf.AppState.name) {
+				if ($manifest.AppState.name) {
 						
-						#if (Test-Path $steamgamepath) {
-						Write-Output ([PSCustomObject]@{
-								Name            = $acf.AppState.name
-								ID              = [String]$acf.AppState.appid
-								LibPath         = $_
-								Path            = $acf.AppState.installdir
-								InstalledDepots = ($acf.AppState.InstalledDepots | Convert-PSObjectToHashtable).keys
-								Branch          = invoke-command { if ($acf.AppState.MountedConfig.BetaKey) { $acf.AppState.MountedConfig.BetaKey } else { $null } }
-							})
-						#}
-
-
-					}
+					#if (Test-Path $steamgamepath) {
+					Write-Output ([PSCustomObject]@{
+							Name            = $manifest.AppState.name
+							ID              = [String]$manifest.AppState.appid
+							LibPath         = [System.IO.Path]::GetDirectoryName($_)
+							Path            = $manifest.AppState.installdir
+							InstalledDepots = ($manifest.AppState.InstalledDepots | Convert-PSObjectToHashtable).keys
+							Branch          = Invoke-Command { if ($manifest.AppState.MountedConfig.BetaKey) { $manifest.AppState.MountedConfig.BetaKey } else { $null } }
+						})
 				}
-			}
-		}
-		$VDFParse = Join-Path $PSScriptRoot 'VDFparse.exe'
-		if (Test-Path $VDFParse -PathType 'Leaf') {
-			$appinfo = (. $VDFParse appinfo $steamapps.ID) | ConvertFrom-Json -ErrorAction SilentlyContinue
-			if ($LASTEXITCODE -or !$appinfo) {
-				Write-Warning "Steam install found and `"VDFparse.exe`" found, but it encountered an error.
-Only basic info can be retrieved."	
-			}
-		}
-		else {
-			Write-Warning "Steam install found, but no `"VDFparse.exe`" is present in `"$PSScriptRoot`".
-Only basic info can be retrieved."
-		}
-
-		if ($appinfo) {
-
-			$appinfo.datasets | foreach-object {
-				if ($_.Data.appinfo.depots) {
-					$_.Data.appinfo.depots = $_.Data.appinfo.depots | Convert-PSObjectToHashtable
-					$_.Data.appinfo.depots.GetEnumerator() | ForEach-Object { 
-						if ($_.Value.Manifests) {
-							$_.Value.Manifests = $_.Value.Manifests | Convert-PSObjectToHashtable
-						}
-					}
-				}
-				if ($_.Data.appinfo.config.launch) {
-					$_.Data.appinfo.config.launch = $_.Data.appinfo.config.launch | Convert-PSObjectToHashtable
-						
-				}
-
-			}
-		}
+			} }
+	
+		$appinfo = $RSAppinfo.EndInvoke($RSAppinfoHandle)
+		$RSAppinfo.Runspace.Close()
+		$RSAppinfo.Dispose()
 
 		foreach ($game in $steamapps) {
 			############
+			$LibPath = $game.LibPath
+			$Path = $game.Path
+			$type = $appinfo.datasets | & { Process { if ($_.id -eq $game.id) { $_.Data.appinfo.common.type } } }
 			
-			if ($appinfo) {
-				$LibPath = $game.LibPath
-				$Path = $game.Path
-				$type = ($appinfo.datasets | where-object id -eq $game.id).Data.appinfo.common.type
-			
-				switch ( $type ) {
-					'Music' { $steamgamepath = Join-Path (Join-Path $LibPath '\SteamApps\music\') $Path }
-					default { $steamgamepath = Join-Path (Join-Path $LibPath '\SteamApps\common\') $Path }
+			if ($type) {
+				$steamgamepath = switch ( $type ) {
+					'Music' { Join-Path (Join-Path $LibPath '\music\') $Path }
+					default { Join-Path (Join-Path $LibPath '\common\') $Path }
 				}
-				if ((Test-Path $steamgamepath)) {
-					$gameobject = [PSCustomObject]@{
-						Name         = $game.Name
-						Type         = $type
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'Steam'
-							ID   = [String]$game.ID
-						}
-						Path         = "$steamgamepath\"
+			}
+			else { $steamgamepath = Join-Path (Join-Path $LibPath '\common\') $Path }
+
+			if ((Test-Path $steamgamepath)) {
+				$gameobject = [App]@{
+					Name     = $game.Name
+					Type     = & { if ($type) { $type } else { 0 } }
+					Platform = [Platform]@{
+						Name = 'Steam'
+						ID   = $game.ID
 					}
-
-					if ( ($appinfo.datasets | Where-Object id -eq $game.ID).Data.appinfo.config.launch ) {
+					Path     = "$steamgamepath\"
+				}
+				if ($appinfo) {
+					if ( ($appinfo.datasets | Where-Object id -EQ $game.ID).data.appinfo.config.launch ) {
 						$branch = $game.Branch
-						$launch = ($appinfo.datasets | Where-Object id -eq $game.ID).Data.appinfo.config.launch.GetEnumerator() | ForEach-Object {
-							if (  $_.value.executable ) {
-								if (($branch -eq $_.value.config.betakey) -or !$_.value.config.betakey) {
-
-									if ( ($_.value.config.oslist -eq 'Windows') -or (!$_.value.config.oslist) ) {
-								
-										if ( !$_.value.config.osarch -or ( ($_.value.config.osarch -eq '64') -and ([Environment]::Is64BitOperatingSystem) ) -or (($_.value.config.osarch -eq '32') -and (![Environment]::Is64BitOperatingSystem))) {
-											$temp = [PSCustomObject]@{ Executable = $_.value.executable }
-		
-											if	($_.value.arguments)	{ $temp | Add-Member Arguments	$_.value.arguments }
-											if	($_.value.workingdir)	{ $temp | Add-Member WorkingDir	$_.value.workingdir }
-											if	($_.value.config.osarch)	{ $temp | Add-Member Arch	$_.value.config.osarch }
-											if	($_.value.description)	{ $temp | Add-Member Description	$_.value.description }
-											$temp
+						$launch = ($appinfo.datasets | Where-Object id -EQ $game.ID).Data.appinfo.config.launch.GetEnumerator() | & { Process {
+								if (  $_.value.executable ) {
+									if (($branch -eq $_.value.config.betakey) -or !$_.value.config.betakey) {
+										[LaunchParamSet]@{
+											Executable  = $_.value.executable
+											Arguments   =	$_.value.arguments
+											WorkingDir  =	$_.value.workingdir 
+											Arch        = & { if ($_.value.config.osarch -eq 64)	{ 'AMD64' }
+												elseif ($_.value.config.osarch -eq 32)	{ 'I386' }
+												else { 0 } }
+											Description =	$_.value.description 
+											OS          = & { 
+												if ($_.value.config.oslist) { $_.value.config.oslist }
+												elseif ([System.IO.Path]::GetExtension($_.value.Executable) -eq '.exe') { 'Windows' }
+												else { 0 }
+											}
 										}
 									}
 								}
-							}
-						}
-						if ($launch) { $gameobject | Add-Member Launch $launch }
+							} }
+						if ($launch) { $gameobject.Launch = $launch }
 					}
 				}
-				Write-Output $gameobject
-						
+				Write-Output $gameobject | Add-SteamAppIDText
 			}
-		}
-	}
-
-}
-
-
-function Get-LibraryGOG {
-	$GOGRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games'
-	#Get GOG games
-	if (Test-Path $GOGRegistry) {
-		Write-Verbose 'GOG install found!'
-
-			(Get-Item -Path $GOGRegistry).GetSubKeyNames() | ForEach-Object {
-			$GOG = Get-ItemProperty -Path "$GOGRegistry\$_"
-			if (!$GOG.dependsOn) {
-				if (Test-Path $GOG.path) {
-					$gameobject = [PSCustomObject]@{
-						Name         = $GOG.gameName
-						Type         = $null
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'GOG'
-							ID   = [String]$GOG.gameID
-						}
-						Path         = "$($GOG.path)\"
-					}
-				
-					if ( $GOG.launchCommand ) {
-						$launch = [PSCustomObject]@{ Executable =	$GOG.launchCommand.Replace($gameobject.path, '') -replace (' $', '') }
-						if ($GOG.launchParam) { $launch | Add-Member Arguments  $GOG.launchParam }
-						if ($GOG.workingDir.Replace($GOG.path, ''))	{ $launch | Add-Member WorkingDir	$GOG.workingDir.Replace($gameobject.path, '') }
-					}
-					if ($launch) { $gameobject | Add-Member Launch $launch }
-					Write-Output $gameobject
-				}
-				
-						
-			}
+			
 		}
 	}
 }
+
 function Get-LibraryEGS {
-	$EGSRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
+	$Registry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Epic Games\EpicGamesLauncher'
 	#Get EGS games
-	if (Test-Path $EGSRegistry) { 
+	if (Test-Path $Registry) { 
 		Write-Verbose 'EGS install found!'
 
-		$EGSlibrary = (Get-ItemProperty -Path $EGSRegistry).AppDataPath
-		if (Test-Path "$EGSlibrary\Manifests") {
-			Get-ChildItem -File "$EGSlibrary\Manifests" | ForEach-Object {
-				$file = $_.FullName
-				$EGS = (Get-Content -Path $file -Encoding UTF8) | ConvertFrom-Json
-				if (Test-Path $EGS.InstallLocation) {
-					if ($EGS.AppCategories -Contains 'games') { $type = 'Game' } elseif ($EGS.AppCategories -Contains 'software') { $type = 'Application' }
-					$gameobject = [PSCustomObject]@{
-						Name         = $EGS.DisplayName
-						Type         = $type
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'EGS'
-							ID   = [String]$EGS.InstallationGuid
+		$storePath = (Get-ItemProperty -Path $Registry).AppDataPath
+		if (Test-Path "$storePath\Manifests") {
+			[System.IO.Directory]::EnumerateFiles("$storePath\Manifests", '*.item') | & { Process {
+					$manifest = (Get-Content -Path $_ -Encoding UTF8) | ConvertFrom-Json
+					if (Test-Path $manifest.InstallLocation) {
+						if ($manifest.AppCategories -Contains 'games') { $type = 'Game' } elseif ($manifest.AppCategories -Contains 'software') { $type = 'Application' }
+						$gameobject = [App]@{
+							Name     = $manifest.DisplayName
+							Type     = $type
+							Platform = [Platform]@{
+								Name = 'EGS'
+								ID   = $manifest.InstallationGuid
+							}
+							Path     = "$($manifest.InstallLocation)\"
 						}
-						Path         = "$($EGS.InstallLocation)\"
+						if ( $manifest.LaunchExecutable ) {
+							$launch = [LaunchParamSet]@{
+								Executable =	$manifest.LaunchExecutable
+								Arguments  = $manifest.LaunchCommand
+							}
+							if ([System.IO.Path]::GetExtension($manifest.LaunchExecutable) -eq '.exe') { $launch.OS = 'Windows' } 
+						}
+							
 					}
-					if ( $EGS.LaunchExecutable ) {
-						$launch = [PSCustomObject]@{ Executable =	$EGS.LaunchExecutable }
-						if ($EGS.LaunchCommand) { $launch | Add-Member Arguments  $EGS.LaunchCommand }
-					}
-					if ($launch) { $gameobject | Add-Member Launch $launch }
-					Write-Output $gameobject
+					if ($launch) { $gameobject.Launch = $launch }
+					Write-Output $gameobject | Add-SteamAppIDText
 				}
 				
-			}
-		}
+			} 
+  }
+	}
+}
+function Get-LibraryGOG {
+	$Registry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\GOG.com\Games'
+	#Get GOG games
+	if (Test-Path $Registry) {
+		Write-Verbose 'GOG install found!'
+
+			(Get-Item -Path $Registry).GetSubKeyNames() | & { Process {
+				$manifest = Get-ItemProperty -Path "$Registry\$_"
+				if (!$manifest.dependsOn) {
+					if (Test-Path $manifest.path) {
+						$gameobject = [App]@{
+							Name     = $manifest.gameName
+							Platform = [Platform]@{
+								Name = 'GOG'
+								ID   = [String]$manifest.gameID
+							}
+							Path     = "$($manifest.path)\"
+						}
+						
+						if ( $manifest.launchCommand ) {
+							$executable = $manifest.launchCommand.Replace($gameobject.path, '') -replace (' $', '')
+							$launch = [LaunchParamSet]@{
+								Executable =	$executable
+								Arguments  = $manifest.LaunchParamSet
+							}
+							if ($manifest.workingDir.Replace($manifest.path, ''))	{ $launch.WorkingDir = $manifest.workingDir.Replace($gameobject.path, '') }
+							if ([System.IO.Path]::GetExtension($launch.Executable) -eq '.exe') { $launch.OS = 'Windows' }
+						
+						}
+						if ($launch) { $gameobject.Launch = $launch }
+						Write-Output $gameobject | Add-SteamAppIDText
+					}
+				
+						
+				}
+			} }
 	}
 }
 function Get-LibraryXBOX {
-	$XBOXRegistry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
+	$Registry	=	'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\GamingServices\PackageRepository\Root'
 	#Get XBOX games
-	if (Test-Path $XBOXRegistry) {
+	if (Test-Path $Registry) {
 				
 		Write-Verbose 'XBOX install found!'
-		$xbox = @()
-		$xbox = (Get-ChildItem -Path "$XBOXRegistry\*\*") | ForEach-Object {
-			$ImagePath = (($_ | Get-ItemProperty).Root).Replace('\\?\', '')
-			$appxmanifest = join-Path $ImagePath '/appxmanifest.xml'
+		$xbox = (Get-ChildItem -Path "$Registry\*\*") | & { Process {
+				$ImagePath = (($_ | Get-ItemProperty).Root).Replace('\\?\', '')
+				$manifest = Join-Path $ImagePath '/appxmanifest.xml'
 
-			if (Test-Path $appxmanifest -PathType 'Leaf') {
-				[xml]$xml = get-content (join-Path $ImagePath '/appxmanifest.xml') -Encoding 'Utf8'
-				Write-Output @{
-					Drive = $ImagePath.Substring(0, 3)
-					ID    = $xml.Package.Identity.Name
-					Name  = $xml.Package.Properties.DisplayName
+				if (Test-Path $manifest -PathType 'Leaf') {
+					[xml]$xml = Get-Content (Join-Path $ImagePath '/appxmanifest.xml') -Encoding 'Utf8'
+					Write-Output @{
+						Drive = $ImagePath.Substring(0, 3)
+						ID    = $xml.Package.Identity.Name
+						Name  = $xml.Package.Properties.DisplayName
+					}
 				}
-			}
-		}
+			} }
 		# Gets install folders
-		$xboxDrives = ($xbox.Drive | Sort-Object -Unique) | ForEach-Object {
-			if (Test-Path (join-path $_ '\.GamingRoot') -PathType 'Leaf') {
-				Write-Output @{
-					Drive = $_
-					Root  = join-Path $_ (((Get-Content "$_\.GamingRoot" -Encoding 'Unicode').Substring(4)).replace("`0", '')) # String needs to be cleaned out of null characters.
+		$xboxDrives = ($xbox.Drive | Sort-Object -Unique) | & { Process {
+				if (Test-Path (Join-Path $_ '\.GamingRoot') -PathType 'Leaf') {
+					Write-Output @{
+						Drive = $_
+						Root  = Join-Path $_ (((Get-Content "$_\.GamingRoot" -Encoding 'Unicode').Substring(4)).replace("`0", '')) # String needs to be cleaned out of null characters.
+					}
 				}
-			}
-		}
-		$xbox | ForEach-Object {
-			$_.add('Path', ( Join-Path ($xboxDrives | Where-Object Drive -EQ $_.Drive).Root "$($_.Name -replace ('\\|\/|:|\*|\?|"|<|>|\|','-'))\Content\"))
+			} }
+		$xbox | & { Process {
+				$_.add('Path', ( Join-Path ($xboxDrives | Where-Object Drive -EQ $_.Drive).Root "$($_.Name -replace ('\\|\/|:|\*|\?|"|<|>|\|','-'))\Content\"))
 			
-			if (Test-Path $_.Path) {
+				if (Test-Path $_.Path) {
 
-				$gameobject = ([PSCustomObject]@{
-						Name         = $_.Name
-						Type         = $null
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'XBOX'
-							ID   = [String]$_.id 
-						}
-						Path         = $_.Path
-					})
-			}
-			$manifest = [xml](Get-Content (join-Path $_.Path 'appxmanifest.xml'))
-			if (($manifest.Package.Applications.Application.Attributes | Where-Object Name -EQ Executable).Value) {
-				$launch = [PSCustomObject]@{ Executable =	($manifest.Package.Applications.Application.Attributes | Where-Object Name -EQ Executable).Value }
-			}
-			if ($launch) { $gameobject | Add-Member Launch $launch }
-			Write-Output $gameobject
-		}
+					$gameobject = ([App]@{
+							Name     = $_.Name
+							Platform = [Platform]@{
+								Name = 'XBOX'
+								ID   = $_.id 
+							}
+							Path     = $_.Path
+						})
+				}
+				$manifest = [xml](Get-Content (Join-Path $_.Path 'appxmanifest.xml'))
+				if (($manifest.Package.Applications.Application.Attributes | Where-Object Name -EQ Executable).Value) {
+					$launch = [LaunchParamSet]@{
+						Executable =	($manifest.Package.Applications.Application.Attributes | Where-Object Name -EQ Executable).Value
+						OS         = 'Windows'
+					}
+				}
+				if ($launch) { $gameobject.Launch = $launch }
+				Write-Output $gameobject | Add-SteamAppIDText
+			} }
 	}
 }
 function Get-LibraryItch {
-	$itchDatabase	=	Join-path $env:APPDATA '/itch/db/butler.db'
-	if (Test-Path $itchDatabase -PathType 'Leaf') {
+	$storePath	=	Join-Path $env:APPDATA '/itch/db/butler.db'
+	if (Test-Path $storePath -PathType 'Leaf') {
 		Write-Verbose 'itch install found!'
 		$sqlite = Join-Path $PSScriptRoot 'sqlite3.exe'
 		if (Test-Path $sqlite -PathType 'Leaf') {
-			$database = ( (. $sqlite -json $itchDatabase "SELECT verdict,title,classification,game_id FROM caves INNER JOIN games ON caves.game_id = games.id;") | ConvertFrom-JSON) | ForEach-Object {
-				$_.verdict = $_.verdict | ConvertFrom-JSON
-				$_
-			}
-			$database | ForEach-Object {
-				if (Test-Path $_.verdict.basePath) {
-					$gameobject = ([PSCustomObject]@{
-							Name         = $_.title
-							Type         = $_.classification
-							PlatformInfo = [PSCustomObject]@{
-								Name = 'itch'
-								ID   = [String]$_.game_id
-							}
-							Path         = "$($_.verdict.basePath)\"
-						})
+			$manifest = ( (. $sqlite -json $storePath 'SELECT verdict,title,classification,game_id FROM caves INNER JOIN games ON caves.game_id = games.id;') | ConvertFrom-Json) | & { Process {
+					$_.verdict = $_.verdict | ConvertFrom-Json
+					$_
+				} }
+			$manifest | & { Process {
+					if (Test-Path $_.verdict.basePath) {
+						$gameobject = ([App]@{
+								Name     = $_.title
+								Type     = $_.classification
+								Platform = [Platform]@{
+									Name = 'itch'
+									ID   = $_.game_id
+								}
+								Path     = "$($_.verdict.basePath)\"
+							})
 				
-					$launch = $_.verdict.candidates | Where-Object 'flavor' -EQ 'Windows' | ForEach-Object {
-						[PSCustomObject]@{
-							Executable = $_.path
-							Arch       = $_.arch
-						}
+						$launch = $_.verdict.candidates | & { Process {
+								[LaunchParamSet]@{
+									Executable = $_.path
+									OS         = $_.flavor
+									Arch       = & { if ($_.arch -eq 386) { 'I386' } else { $_.arch } }
+								}
+							} }
+						if ($launch) { $gameobject.Launch = $launch }
 					}
-					if ($launch) { $gameobject | Add-Member Launch $launch }
-				}
-				Write-Output $gameobject
-			}
+					Write-Output $gameobject | Add-SteamAppIDText
+				} }
 		}
 		else {
 			Write-Warning "itch install found, but no `"SQlite3.exe`" is present in `"$PSScriptRoot`".
 Please put the SQLite command line tool in `"$PSScriptRoot`" to add support for itch."
 		}
-	}
-	
+	}	
 }
 function Get-LibrarySKIF {
-	$SKIFRegistry	=	'Registry::HKEY_CURRENT_USER\SOFTWARE\Kaldaien\Special K\Games'
+	$Registry	=	'Registry::HKEY_CURRENT_USER\SOFTWARE\Kaldaien\Special K\Games'
 	#Get custom SKIF games
-	if (Test-Path $SKIFRegistry) {
+	if (Test-Path $Registry) {
 		Write-Verbose 'SKIF install found!'
 
-	(Get-Item -Path $SKIFRegistry).GetSubKeyNames() | ForEach-Object {
-			$SKIFCustom = Get-ItemProperty -Path "$SKIFRegistry\$_"
-			if (Test-Path $SKIFCustom.InstallDir) {
-				$gameobject = ([PSCustomObject]@{
-						Name         = $SKIFCustom.Name
-						PlatformInfo = [PSCustomObject]@{
-							Name = 'SKIF'
-							ID   = [String]$SKIFCustom.ID
-						}
-						Path         = "$($SKIFCustom.InstallDir)\"
-					})
-				if ( $SKIFCustom.ExeFileName ) {
-					$launch = [PSCustomObject]@{ Executable =	$SKIFCustom.ExeFileName }
-					if ($SKIFCustom.LaunchOptions) { $launch | Add-Member Arguments  $SKIFCustom.LaunchOptions }
+	(Get-Item -Path $Registry).GetSubKeyNames() | & { Process {
+				$manifest = Get-ItemProperty -Path "$Registry\$_"
+				if (Test-Path $manifest.InstallDir) {
+					$gameobject = ([App]@{
+							Name     = $manifest.Name
+							Platform = [Platform]@{
+								Name = 'SKIF'
+								ID   = $manifest.ID
+							}
+							Path     = "$($manifest.InstallDir)\"
+						})
+					if ( $manifest.ExeFileName ) {
+						$launch = [LaunchParamSet]@{ Executable =	$manifest.ExeFileName }
+						if ($manifest.LaunchOptions) { $launch.Arguments = $manifest.LaunchOptions }
+					}
+					if ($launch) { $gameobject.Launch = $launch }
+					Write-Output $gameobject | Add-SteamAppIDText
 				}
-				if ($launch) { $gameobject | Add-Member Launch $launch }
-				Write-output $gameobject
-			}
 			
-		}
+			} }
 	}
 }
 
@@ -565,50 +571,25 @@ function Get-GameLibraries {
 	param (
 		[Parameter()][String[]]$Platforms
 	)
-	if ($null -ne $Platforms) {
-		switch ($Platforms) {
-			'Steam'	{ Get-LibrarySteam | Add-SteamAppIDText }
-			'GOG'	{ Get-LibraryGOG | Add-SteamAppIDText }
-			'EGS'	{ Get-LibraryEGS | Add-SteamAppIDText }
-			'XBOX'	{ Get-LibraryXBOX | Add-SteamAppIDText }
-			'itch'	{ Get-LibraryItch | Add-SteamAppIDText }
-			'SKIF'	{ Get-LibrarySKIF | Add-SteamAppIDText }
-			default { Write-Warning "Unknown Plattform: $_" }
-		} 
-	}
-	else {
-		Get-LibrarySteam | Add-SteamAppIDText
-		Get-LibraryGOG | Add-SteamAppIDText
-		Get-LibraryEGS | Add-SteamAppIDText
-		Get-LibraryXBOX | Add-SteamAppIDText
-		Get-LibraryItch | Add-SteamAppIDText
-		Get-LibrarySKIF | Add-SteamAppIDText
-	}
-}
-
-function Group-GameLibraries {
-	[CmdletBinding()]
-	param (
-		[Parameter(ValueFromPipeline)][PSCustomObject[]]$Libraries
-	)
-	begin {
-		#[System.Collections.ArrayList]$Libraries_new = @()
-		[array]$Libraries_new = @()
-	}
-	process {
-		#[void]$Libraries_new.add($Libraries)
-		$Libraries_new += $Libraries
-	}
-	end {
-		$Libraries_new | Group-Object 'Path' | ForEach-object {
-			([PSCustomObject]@{
-				Name         = $_.Group.Name | Sort-Object -Unique
-				Type         = $_.Group.Type | Sort-Object -Unique
-				PlatformInfo = $_.Group.PlatformInfo  | Sort-Object { [String[]]$_ } -Unique
-				Path         = $_.Name
-				Launch       = $_.Group.Launch | Sort-Object { [String[]]$_ } -Unique
-			})
+	& {
+		if ($null -ne $Platforms) {
+			switch ($Platforms) {
+				'Steam'	{ Get-LibrarySteam }
+				'EGS'	{ Get-LibraryEGS }
+				'GOG'	{ Get-LibraryGOG }
+				'XBOX'	{ Get-LibraryXBOX }
+				'itch'	{ Get-LibraryItch }
+				'SKIF'	{ Get-LibrarySKIF }
+				default { Write-Warning "Unknown Plattform: $_" }
+			} 
+		}
+		else {
+			Get-LibrarySteam
+			Get-LibraryEGS
+			Get-LibraryGOG
+			Get-LibraryXBOX
+			Get-LibraryItch
+			Get-LibrarySKIF
 		}
 	}
-
 }
