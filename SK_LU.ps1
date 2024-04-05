@@ -23,7 +23,7 @@ param (
 #[string](get-location) | out-host
 
 Import-Module -Name (Join-Path $PSScriptRoot 'SpecialK_PSLibrary.psm1') -Function 'Get-SkPath', 'Get-SkDll' -Force
-Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -Function 'Get-GameLibraries' , 'Group-GameLibraries' -Force
+Import-Module -Name (Join-Path $PSScriptRoot 'GameLibrary.psm1') -Function 'Get-GameLibraries' -Force
 
 #region <FUNCTIONS>
 
