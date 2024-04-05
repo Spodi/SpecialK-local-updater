@@ -490,17 +490,17 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 	}
 }
 
-[System.Windows.Input.MouseButtonEventHandler]$Events.ClickGameGrid = { # )
+[System.Windows.Input.MouseButtonEventHandler]$Events.ClickGameGrid = { 
 	if ( ($_.LeftButton -EQ 'Pressed') -and ($_.OriginalSource.Name -EQ 'PathText') ) {
 		$_.OriginalSource.DataContext.FullName
-		. explorer.exe /select, "$($_.OriginalSource.DataContext.FullName)"
+		. explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)"
 	}
 }
 [System.Windows.RoutedEventHandler]$Events.ButtonClickHandler = {
 	If ($_.OriginalSource.Name -eq 'UpdateButton') { . $Events.ButtonUpdate }
 	elseif ($_.OriginalSource.Name -eq 'ScanButton') { . $Events.ButtonScan }
 	elseif ($_.OriginalSource.Name -eq 'TaskButton') { . $Events.ButtonTask }
-	elseif ($_.OriginalSource.Name -eq 'PathText') { . explorer.exe /select, "$($_.OriginalSource.DataContext.FullName)" }
+	elseif ($_.OriginalSource.Name -eq 'PathText') { . explorer.exe /select,"$($_.OriginalSource.DataContext.FullName)" }
 	
 }
 
