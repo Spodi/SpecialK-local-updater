@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v24.04.05.1
+	v24.4.6
  #>
 
 [CmdletBinding()]
@@ -286,14 +286,12 @@ else {
 	$AdditionalScanPaths = $null
 }
 
-$Events = @{}
-$Events.ButtonRefresh = {
-	$dlls = $null
 
+function QuickRefresh {
 	if (Test-Path $PSScriptRoot\SK_LU_cache.json) {
 		Write-Host -NoNewline 'Loading cached locations... '
 		$cacheTime = Measure-Command {
-			$dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
+			$script:dllcache = (Get-Content $PSScriptRoot\SK_LU_cache.json | ConvertFrom-Json)
 		}
 		Write-Host "Took $($cacheTime.TotalSeconds) Seconds."
 	}
@@ -302,25 +300,23 @@ $Events.ButtonRefresh = {
 	if (Test-Path $SkRegistryLocal) {
 		Write-Host -NoNewline 'Loading SKs registry... '
 		$SKTime = Measure-Command {
-			[Array]$dlls = (Get-Item 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\').Property | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+			[Array]$script:dlls = (Get-Item 'Registry::HKEY_CURRENT_USER\Software\Kaldaien\Special K\Local\').Property | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 		}
 		Write-Host "Took $($SKTime.TotalSeconds) Seconds."
 	
 	}
 	
 	if ($dllcache) {
-		[Array]$dlls += $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platform $_.Platform } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+		[Array]$script:dlls += $dllcache | ForEach-Object { Get-Item $_.FullName -ErrorAction 'SilentlyContinue' | Add-Member -PassThru Platform $_.Platform } | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
 	
 	if ($whitelist) {
-		[Array]$dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
+		[Array]$script:dlls += $whitelist | Get-Item -ErrorAction 'SilentlyContinue' | Where-Object { ($_.VersionInfo.ProductName -EQ 'Special K') } | Write-Output
 	}
-	$instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
-	$GUI.Nodes.Games.ItemsSource = $null
-	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
+	$script:instances = $script:dlls | Sort-Object 'FullName' -Unique | Update-DllList
 }
 
-. $Events.ButtonRefresh
+QuickRefresh
 Write-Host 'Done'
 
 if ($NoGUI) {
@@ -400,7 +396,7 @@ $(if (Get-ScheduledTask -TaskName 'Special K Local Updater Task' -ErrorAction Ig
 		$GUI.Nodes.TaskButton.Content = 'Enable Automatic Update'
 	})
 
-
+$Events = @{}
 
 $Events.ButtonUpdate = {
 	$GUI.Nodes.Games.ItemsSource | Where-Object { $_.IsChecked -eq $True } | ForEach-Object {
@@ -442,15 +438,20 @@ $Events.ButtonTask = {
 }
 
 $Events.ButtonScan = {
-	$dlls = $null
-	. $Events.ButtonRefresh
-	$dlls += ScanAndCache $AdditionalScanPaths
+	QuickRefresh
+	$script:dlls += ScanAndCache $AdditionalScanPaths
 	$script:instances = $dlls | Sort-Object 'FullName' -Unique | Update-DllList
 	$GUI.Nodes.Games.ItemsSource = $null
 	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
 	Write-Host 'Done'
 }
 
+$Events.ButtonRefresh = {
+	QuickRefresh
+	$GUI.Nodes.Games.ItemsSource = $null
+	$GUI.Nodes.Games.ItemsSource = [Array]$script:instances
+	Write-Host 'Done'
+}
 
 $Events.SelectAll = {
 	
@@ -523,7 +524,7 @@ This can not be undone!' -Title 'Confirm deletion' -Button 'YesNo' -Icon 'Questi
 $GUI.Nodes.CheckboxSelectAll.Add_Click($Events.SelectAll)
 $GUI.Nodes.VariantsComboBox.Add_SelectionChanged($Events.VariantChange)
 $GUI.Nodes.DeleteButton.Add_Click($Events.ButtonDelete)
-$GUI.Nodes.RefreshButton.Add_Click({ . $Events.ButtonRefresh; Write-Host 'Done' })
+$GUI.Nodes.RefreshButton.Add_Click($Events.ButtonRefresh)
 $GUI.WPF.AddHandler([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent, $Events.ButtonClickHandler)
 
 $GUI.WPF.Add_Loaded({
