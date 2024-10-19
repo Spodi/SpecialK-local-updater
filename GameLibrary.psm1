@@ -258,7 +258,7 @@ function Get-LibrarySteam {
 					$appinfo = (. $VDFParse appinfo $appids) | ConvertFrom-Json -ErrorAction SilentlyContinue
 					if ($LASTEXITCODE -or !$appinfo) {
 						Write-Warning "Steam install found and `"VDFparse.exe`" found, but it encountered an error.
-Only basic info can be retrieved."	
+Only basic info can be retrieved."
 					}
 				}
 				else {
@@ -307,6 +307,13 @@ Only basic info can be retrieved."
 			} }
 	
 		$appinfo = $RSAppinfo.EndInvoke($RSAppinfoHandle)
+		if ($RSAppinfo.Streams.Error) {
+			$RSAppinfo.Streams.Error -join "`n" | Write-Error
+		}
+		if ($RSAppinfo.Streams.Warning) {
+			$RSAppinfo.Streams.Warning -join "`n" | Write-Warning	
+		}	
+	
 		$RSAppinfo.Runspace.Close()
 		$RSAppinfo.Dispose()
 
@@ -398,7 +405,7 @@ function Get-LibraryEGS {
 							
 					}
 					if ($launch) { $gameobject.Launch = $launch }
-					Write-Output $gameobject | Add-SteamAppIDText
+					Write-Output ($gameobject | Add-SteamAppIDText)
 				}
 				
 			} 
@@ -435,7 +442,7 @@ function Get-LibraryGOG {
 						
 						}
 						if ($launch) { $gameobject.Launch = $launch }
-						Write-Output $gameobject | Add-SteamAppIDText
+						Write-Output ($gameobject | Add-SteamAppIDText)
 					}
 				
 						
@@ -493,7 +500,7 @@ function Get-LibraryXBOX {
 					}
 				}
 				if ($launch) { $gameobject.Launch = $launch }
-				Write-Output $gameobject | Add-SteamAppIDText
+				Write-Output ($gameobject | Add-SteamAppIDText)
 			} }
 	}
 }
@@ -528,7 +535,7 @@ function Get-LibraryItch {
 							} }
 						if ($launch) { $gameobject.Launch = $launch }
 					}
-					Write-Output $gameobject | Add-SteamAppIDText
+					Write-Output ($gameobject | Add-SteamAppIDText)
 				} }
 		}
 		else {
@@ -559,7 +566,7 @@ function Get-LibrarySKIF {
 						if ($manifest.LaunchOptions) { $launch.Arguments = $manifest.LaunchOptions }
 					}
 					if ($launch) { $gameobject.Launch = $launch }
-					Write-Output $gameobject | Add-SteamAppIDText
+					Write-Output ($gameobject | Add-SteamAppIDText)
 				}
 			
 			} }
@@ -571,25 +578,23 @@ function Get-GameLibraries {
 	param (
 		[Parameter()][String[]]$Platforms
 	)
-	& {
-		if ($null -ne $Platforms) {
-			switch ($Platforms) {
-				'Steam'	{ Get-LibrarySteam }
-				'EGS'	{ Get-LibraryEGS }
-				'GOG'	{ Get-LibraryGOG }
-				'XBOX'	{ Get-LibraryXBOX }
-				'itch'	{ Get-LibraryItch }
-				'SKIF'	{ Get-LibrarySKIF }
-				default { Write-Warning "Unknown Plattform: $_" }
-			} 
-		}
-		else {
-			Get-LibrarySteam
-			Get-LibraryEGS
-			Get-LibraryGOG
-			Get-LibraryXBOX
-			Get-LibraryItch
-			Get-LibrarySKIF
-		}
+	if ($null -ne $Platforms) {
+		switch ($Platforms) {
+			'Steam'	{ Get-LibrarySteam }
+			'EGS'	{ Get-LibraryEGS }
+			'GOG'	{ Get-LibraryGOG }
+			'XBOX'	{ Get-LibraryXBOX }
+			'itch'	{ Get-LibraryItch }
+			'SKIF'	{ Get-LibrarySKIF }
+			default { Write-Warning "Unknown Plattform: $_" }
+		} 
+	}
+	else {
+		Get-LibrarySteam
+		Get-LibraryEGS
+		Get-LibraryGOG
+		Get-LibraryXBOX
+		Get-LibraryItch
+		Get-LibrarySKIF
 	}
 }
