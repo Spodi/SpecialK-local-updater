@@ -1,7 +1,7 @@
 <#
 .NOTES
-Spodi's Powershell Game Library Module v24.04.05
-    Copyright (C) 2022-2023  Spodi
+Spodi's Powershell Game Library Module v24.11.02
+    Copyright (C) 2022-2024  Spodi
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ enum AppType {
 	Unknown
 	Game
 	Demo
+	Beta
 	Application
 	AddOn
 	Music
@@ -334,7 +335,7 @@ Only basic info can be retrieved."
 			if ((Test-Path $steamgamepath)) {
 				$gameobject = [App]@{
 					Name     = $game.Name
-					Type     = & { if ($type) { $type } else { 0 } }
+					Type     = if ([AppType].GetEnumNames() -contains $type) { $type } else { 0; Write-Warning "Unknown Type: `"$type`" for title `"$($game.name)`"" }
 					Platform = [Platform]@{
 						Name = 'Steam'
 						ID   = $game.ID
@@ -518,7 +519,7 @@ function Get-LibraryItch {
 					if (Test-Path $_.verdict.basePath) {
 						$gameobject = ([App]@{
 								Name     = $_.title
-								Type     = $_.classification
+								Type     = if ([AppType].GetEnumNames() -contains $_.classification) { $_.classification } else { 0; Write-Warning "Unknown Type: `"$($_.classification)`" for title `"$($_.title)`"" }
 								Platform = [Platform]@{
 									Name = 'itch'
 									ID   = $_.game_id
