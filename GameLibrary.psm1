@@ -17,6 +17,7 @@ Spodi's Powershell Game Library Module v24.11.02
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #>
 
+using namespace System.Collections.Generic
 enum AppType {
 	Unknown
 	Game
@@ -77,17 +78,18 @@ enum Architecture {
 }
 
 class Platform {
-	[PlatformName]$Name
-	[String]$ID
+	[PlatformName]$Name = [PlatformName]::Unknown
+	[String]$ID = 0
 }
 
 class LaunchParamSet {
-	[String]$Executable
-	[String]$WorkingDir
-	[String]$Arguments
-	[OSType]$OS
-	[Architecture]$Arch
-	[String]$Description
+	[int16]$ID = 0
+	[String]$Executable = ''
+	[String]$WorkingDir = ''
+	[String]$Arguments = ''
+	[OSType]$OS = [OSType]::Unknown
+	[Architecture]$Arch = [Architecture]::Unknown
+	[String]$Description = ''
 
 	[String]ToString() {
 		if ($this.Arguments) {
@@ -100,11 +102,11 @@ class LaunchParamSet {
 }
 
 class App {
-	[String]$Name
-	[AppType]$Type
-	[Platform[]]$Platform
-	[String]$Path
-	[LaunchParamSet[]]$Launch
+	[String]$Name = ''
+	[AppType]$Type = [AppType]::Unknown
+	[List[Platform]]$Platform  = [List[Platform]]::new(1)
+	[String]$Path = ''
+	[List[LaunchParamSet]]$Launch = [List[LaunchParamSet]]::new(1)
 }
 
 $PSObjectToHashtable = {
@@ -198,13 +200,13 @@ function Add-SteamAppIDText {
 		}
 		if ($path) {
 			$path | & { Process {
-					if (Test-Path $_) {
+					if (Test-Path $_ -PathType Leaf) {
 						$id = Get-Content -TotalCount 1 -LiteralPath $_
 						if ($id) { 
 							if (($Games.Platform | & { Process {
 								($_.Name -ne 'Steam' -or $_.ID -ne $id)
 										} }) ) {
-								[Array]$Games.Platform += [Platform]@{Name = 'Steam'; ID = $id }
+								[List[Platform]]$Games.Platform.Add([Platform]@{Name = 'Steam'; ID = $id })
 							}
 						}
 					}
@@ -349,9 +351,10 @@ Only basic info can be retrieved."
 								if (  $_.value.executable ) {
 									if (($branch -eq $_.value.config.betakey) -or !$_.value.config.betakey) {
 										[LaunchParamSet]@{
+											ID          = $_.Name
 											Executable  = $_.value.executable
-											Arguments   =	$_.value.arguments
-											WorkingDir  =	$_.value.workingdir 
+											Arguments   = $_.value.arguments
+											WorkingDir  = $_.value.workingdir 
 											Arch        = & { if ($_.value.config.osarch -eq 64)	{ 'AMD64' }
 												elseif ($_.value.config.osarch -eq 32)	{ 'I386' }
 												else { 0 } }
