@@ -9,7 +9,7 @@
 	
 	.Notes
 	Created by Spodi and Wall_SoGB
-	v24.4.6
+	v26.1.12
  #>
 
 [CmdletBinding()]
@@ -551,7 +551,7 @@ $UpdatePowershell.Runspace = $UpdateRunspace
 			})
 		$i = 0
 		while ($i -le 3) {
-			$Remote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -EQ 'Discord')[0]
+			$Remote = ((ConvertFrom-Json (Invoke-WebRequest 'https://sk-data.special-k.info/repository.json' -UseBasicParsing -ErrorAction 'SilentlyContinue').Content).Main.Versions | Where-Object Branches -Contains 'Discord')[0]
 			
 			if ($Remote) {
 				$NewestRemote = [version]$Remote.Name
